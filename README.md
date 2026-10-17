@@ -1,8 +1,8 @@
 # POST — Pós-instalação do Windows com TUI
 
 Executável em Go, com interface interativa no terminal (TUI), para configurar
-uma workstation Windows recém-instalada: Windows Update, Chrome, Git + Git
-Credential Manager, Microsoft 365 Apps (no lugar do LibreOffice/OnlyOffice),
+uma workstation Windows recém-instalada: Windows Update, Chrome, Firefox, Git +
+Git Credential Manager, Microsoft 365 Apps (no lugar do LibreOffice/OnlyOffice),
 VSCode, DBeaver, Postman, DevToys, fnm/Node.js, PHP + Composer +
 driver SQL Server, Bitwarden, Telegram, Vesktop (Discord + Vencord), Spotify,
 WhatsApp, VLC, OBS Studio, Obsidian, Ente Auth, Gaphor, jogos (Steam, Heroic,
@@ -111,7 +111,7 @@ automaticamente e roda todos os módulos (menos os de `--skip`).
 | `bootstrap` | atualiza as fontes do winget e prepara NuGet/PSGallery |
 | `windows_update` | PSWindowsUpdate + atualizações pendentes (sem reiniciar; avisa no final) |
 | `dev_drive` | Dev Drive (VHDX dinâmico em ReFS) para Projects e os caches de npm/Composer/pip/Cargo — ver abaixo |
-| `navegador_git` | Chrome, Git, Git Credential Manager; Git com FSMonitor, cache de não rastreados e caminhos longos (também liberados no Windows) |
+| `navegador_git` | Chrome, Firefox (pt-BR), Git, Git Credential Manager; Git com FSMonitor, cache de não rastreados e caminhos longos (também liberados no Windows) |
 | `office` | Microsoft 365 Apps via Office Deployment Tool |
 | `dev_tools` | VSCode (com "Abrir com o Code" no Explorer), DBeaver, Postman, DevToys, fnm + Node.js LTS |
 | `php_sqlsrv` | PHP 8.5, Composer (instalador verificado por SHA-384), ODBC 18, `sqlsrv`/`pdo_sqlsrv` |

@@ -95,8 +95,8 @@ $updates | ForEach-Object { 'UPD ' + $_.Title }
 
 var navegadorGit = Module{
 	ID:    "navegador_git",
-	Title: "Chrome + Git + Git Credential Manager",
-	Desc:  "Instala o Google Chrome, o Git e o Git Credential Manager, com o Git ajustado para repositórios grandes (FSMonitor, cache de não rastreados) e caminhos longos",
+	Title: "Chrome + Firefox + Git + Git Credential Manager",
+	Desc:  "Instala o Google Chrome, o Firefox, o Git e o Git Credential Manager, com o Git ajustado para repositórios grandes (FSMonitor, cache de não rastreados) e caminhos longos",
 	Run: func(c *Ctx) error {
 		if err := c.installApps(config.NavegadorGit); err != nil {
 			return err
@@ -127,7 +127,7 @@ var navegadorGit = Module{
 				c.Log.Warnf("Não consegui definir %s no Git: %v", kv[0], err)
 			}
 		}
-		c.Log.Successf("Chrome, Git e GCM instalados; Git com FSMonitor, cache de não rastreados e caminhos longos.")
+		c.Log.Successf("Chrome, Firefox, Git e GCM instalados; Git com FSMonitor, cache de não rastreados e caminhos longos.")
 		return nil
 	},
 }

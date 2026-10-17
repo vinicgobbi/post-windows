@@ -20,6 +20,9 @@ type App struct {
 
 var NavegadorGit = []App{
 	{ID: "Google.Chrome", Nome: "Google Chrome"},
+	// O pacote "Mozilla.Firefox" instala em inglês; o winget publica um por
+	// idioma.
+	{ID: "Mozilla.Firefox.pt-BR", Nome: "Mozilla Firefox"},
 	{ID: "Git.Git", Nome: "Git"},
 	{ID: "Git.GCM", Nome: "Git Credential Manager"},
 }
