@@ -1,4 +1,8 @@
 logs/
 
+# Executável compilado localmente (as releases são publicadas pela action)
+/post-windows.exe
+/dist/
+
 OVPN/*
 !OVPN/README.md
