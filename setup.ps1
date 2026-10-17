@@ -1,128 +1,78 @@
 ﻿#Requires -Version 5.1
 <#
-    Ponto de entrada do post-install do Windows.
-    Uso:  powershell -ExecutionPolicy Bypass -File .\setup.ps1
-    (o script se reabre sozinho como Administrador se não estiver elevado)
+    Bootstrap do post-windows: baixa o executável da release no GitHub
+    (verificando o SHA-256) e executa como Administrador, apontando OVPN\ e
+    logs\ para esta pasta.
+
+      powershell -ExecutionPolicy Bypass -File .\setup.ps1              # última release
+      $env:POST_WINDOWS_VERSION = 'v1.2.0'; .\setup.ps1                 # versão específica
+      powershell -ExecutionPolicy Bypass -File .\setup.ps1 --dry-run    # flags são repassadas
+
+    Se existir um .\post-windows.exe compilado localmente
+    (go build -o post-windows.exe .\cmd\post-windows), ele é usado no lugar
+    do download.
 #>
 
-$script:ScriptDir = $PSScriptRoot
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'   # o Invoke-WebRequest fica muito lento com a barra
+$Repo = 'vinicgobbi/post-windows'
+$ScriptDir = $PSScriptRoot
 
-# Console padrão do Windows PowerShell nem sempre usa UTF-8 na saída, o que
-# bugava os acentos (ã, ç, ó...) mesmo com os arquivos .ps1 em UTF-8.
-try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
-try { chcp 65001 | Out-Null } catch {}
-
-# --- Carrega bibliotecas, configuração e módulos ---
-. (Join-Path $script:ScriptDir "lib\UI.ps1")
-. (Join-Path $script:ScriptDir "lib\SystemDetect.ps1")
-. (Join-Path $script:ScriptDir "lib\Utils.ps1")
-. (Join-Path $script:ScriptDir "config.ps1")
-Get-ChildItem -Path (Join-Path $script:ScriptDir "modules") -Filter "*.ps1" | Sort-Object Name | ForEach-Object {
-    . $_.FullName
-}
-
-Show-Banner
-
-# --- Elevação: precisa ser Administrador (equivalente ao "sudo" do Linux) ---
-if (-not (Test-IsAdministrator)) {
-    Write-Host "[!] Este script precisa rodar como Administrador. Reabrindo elevado..." -ForegroundColor Yellow
-    $exePath = (Get-Process -Id $PID).Path
+# Eleva aqui (e não no executável) para tudo rodar nesta mesma janela.
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -and ($args -notcontains '--dry-run')) {
+    Write-Host '[!] É preciso rodar como Administrador. Reabrindo com o UAC...' -ForegroundColor Yellow
+    $q = { param($s) "'" + ($s -replace "'", "''") + "'" }
+    $repassar = ($args | ForEach-Object { & $q $_ }) -join ' '
+    $versao = if ($env:POST_WINDOWS_VERSION) { "`$env:POST_WINDOWS_VERSION = $(& $q $env:POST_WINDOWS_VERSION); " } else { '' }
+    $comando = "$versao& $(& $q $PSCommandPath) $repassar; Read-Host 'Pressione Enter para fechar'"
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $exePath
-    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    $psi.Verb = "runas"
-    # UseShellExecute precisa ser explicitamente $true para o Verb "runas"
-    # ter efeito. No .NET Framework (Windows PowerShell 5.1) o padrão já é
-    # $true, mas no .NET moderno (PowerShell 7/pwsh) o padrão é $false - sem
-    # isso aqui o "runas" é ignorado em silêncio (sem UAC, sem erro) e o
-    # processo reabre sem elevar, causando um loop infinito de reaberturas.
+    $psi.FileName = (Get-Process -Id $PID).Path
+    # -EncodedCommand: o -Command do powershell.exe trata aspas de um jeito
+    # próprio, que quebra caminhos e argumentos com espaço.
+    $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -EncodedCommand ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($comando))
+    $psi.Verb = 'runas'
+    # Sem UseShellExecute = $true o "runas" é ignorado em silêncio no .NET
+    # moderno (PowerShell 7), reabrindo sem elevar.
     $psi.UseShellExecute = $true
-    try {
-        [System.Diagnostics.Process]::Start($psi) | Out-Null
-    } catch {
-        Write-Host "[-] Elevação cancelada pelo usuário." -ForegroundColor Red
-    }
-    exit
+    try { [System.Diagnostics.Process]::Start($psi) | Out-Null } catch { Write-Host '[-] Elevação cancelada.' -ForegroundColor Red; exit 1 }
+    exit 0
 }
 
-if (-not (Test-WingetDisponivel)) {
-    Write-Host "[-] winget não encontrado. Atualize o 'App Installer' pela Microsoft Store e rode o script novamente." -ForegroundColor Red
+# Só há build para amd64.
+if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
+    Write-Host "[-] Arquitetura não suportada: $env:PROCESSOR_ARCHITECTURE (só amd64/x64)." -ForegroundColor Red
     exit 1
 }
 
-Start-Log -Prefixo "setup"
-
-try {
-    # --- Identificação do sistema ---
-    Get-InformacoesSistema
-    Show-MensagemSistemaDetectado
-
-    # No Windows a elevação (UAC) não troca o usuário logado, então o alvo da
-    # configuração já é sempre quem está rodando o script - sem precisar
-    # perguntar "para qual usuário", diferente do sudo no Linux.
-    Write-Info "Configuração será aplicada para: $env:USERNAME"
-
-    # --- Seleção de módulos ---
-    $itensMenu = $script:ModulosRegistrados | ForEach-Object {
-        [PSCustomObject]@{ Id = $_.Id; Titulo = $_.Titulo; Descricao = $_.Descricao }
-    }
-    $selecionadosMenu = Show-ChecklistMenu -Titulo "Escolha o que deseja executar (tudo já vem marcado):" -Itens $itensMenu
-
-    if ($selecionadosMenu.Count -eq 0) {
-        Write-Aviso "Nenhum módulo selecionado. Nada a fazer."
-        exit 0
+$bin = Join-Path $ScriptDir 'post-windows.exe'
+if (-not (Test-Path $bin)) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $asset = 'post-windows-windows-amd64.exe'
+    $url = if ($env:POST_WINDOWS_VERSION) {
+        "https://github.com/$Repo/releases/download/$env:POST_WINDOWS_VERSION/$asset"
+    } else {
+        "https://github.com/$Repo/releases/latest/download/$asset"
     }
 
-    # Resolve dependências entre módulos (ex.: um módulo que precise de outro
-    # já ter rodado antes) mesmo que o usuário tenha desmarcado a dependência.
-    $selecionadosFinal = Resolve-DependenciasModulos -Selecionados $selecionadosMenu
-    $script:SelecionadosIds = $selecionadosFinal
+    $tmp = Join-Path $env:TEMP ('post-windows-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $tmp | Out-Null
+    $bin = Join-Path $tmp $asset
+    Write-Host "[*] Baixando $url" -ForegroundColor Yellow
+    Invoke-WebRequest -Uri $url -OutFile $bin -UseBasicParsing
+    Invoke-WebRequest -Uri "$url.sha256" -OutFile "$bin.sha256" -UseBasicParsing
 
-    # Mantém a ordem de registro dos módulos (= ordem numérica dos arquivos),
-    # não a ordem em que apareceram no menu.
-    $modulosParaRodar = $script:ModulosRegistrados | Where-Object { $selecionadosFinal -contains $_.Id }
-
-    Write-Host ""
-    Write-Info "Módulos selecionados:"
-    foreach ($m in $modulosParaRodar) { Write-Host "  - $($m.Titulo)" }
-    Write-Host ""
-
-    if (-not (Confirm-Acao "Iniciar a configuração com os $($modulosParaRodar.Count) módulos acima?")) {
-        Write-Aviso "Operação cancelada pelo usuário."
-        exit 0
+    # Formato do sha256sum: "<hash>  <arquivo>".
+    $esperado = ((Get-Content "$bin.sha256" -Raw).Trim() -split '\s+')[0].ToLower()
+    $real = (Get-FileHash -Path $bin -Algorithm SHA256).Hash.ToLower()
+    if ($real -ne $esperado) {
+        Write-Host '[-] Checksum SHA-256 não confere; abortando.' -ForegroundColor Red
+        Remove-Item $tmp -Recurse -Force
+        exit 1
     }
-
-    # --- Execução ---
-    Start-RawLog
-    $executados = @()
-    $total = $modulosParaRodar.Count
-    for ($i = 0; $i -lt $total; $i++) {
-        $m = $modulosParaRodar[$i]
-        Write-Passo -Atual ($i + 1) -Total $total -Titulo $m.Titulo
-        try {
-            & $m.Funcao
-            $executados += $m.Titulo
-        } catch {
-            Write-Aviso "Módulo '$($m.Titulo)' falhou: $($_.Exception.Message)"
-        }
-    }
-
-    Show-ResumoFinal -Executados $executados
-} catch [System.Management.Automation.PipelineStoppedException] {
-    # Lançada quando o usuário aperta Ctrl+C enquanto o pipeline está rodando
-    # (equivalente ao "trap ... INT" do lado Linux). Sai com o mesmo código
-    # de saída (130) que o bash usa para SIGINT.
-    Write-Host ""
-    Write-Host "[-] Cancelado pelo usuário." -ForegroundColor Red
-    Write-LogLine -Nivel "ERRO" -Mensagem "Cancelado pelo usuário (Ctrl+C)."
-    exit 130
-} catch {
-    # Qualquer erro terminante que escape do try/catch por módulo do loop
-    # acima (ex.: durante o menu, a resolução de dependências ou o resumo
-    # final) - equivalente ao "trap ... ERR" do lado Linux, mostrando o
-    # número da linha em vez de deixar a stack trace padrão do PowerShell.
-    Write-Aviso "Falha inesperada (linha $($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line.Trim())"
-    exit 1
-} finally {
-    Stop-RawLog
 }
+
+& $bin --ovpn-dir (Join-Path $ScriptDir 'OVPN') --log-dir (Join-Path $ScriptDir 'logs') @args
+$codigo = $LASTEXITCODE
+if ($tmp) { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+exit $codigo

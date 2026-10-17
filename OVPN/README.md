@@ -1,7 +1,7 @@
 # Perfis OpenVPN
 
 Coloque aqui dentro todos os arquivos `.ovpn` que devem ser importados pelo
-`modules/15_ovpn.ps1` durante o setup.
+módulo `ovpn` durante o setup.
 
 O módulo instala o OpenVPN GUI e copia todo `*.ovpn` presente nesta pasta
 para a pasta de perfis monitorada por ele (`%ProgramFiles%\OpenVPN\config`).
