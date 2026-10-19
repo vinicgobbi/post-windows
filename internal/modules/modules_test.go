@@ -174,3 +174,11 @@ func TestServicoDesativado(t *testing.T) {
 		t.Error("detecção do START_TYPE errada")
 	}
 }
+
+func TestArgsACLDevDrive(t *testing.T) {
+	got := strings.Join(argsACLDevDrive(`D:\`, "S-1-5-21-1-2-3-1001"), " ")
+	want := `D:\ /inheritance:r /grant:r *S-1-5-21-1-2-3-1001:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /remove:g *S-1-5-32-545 *S-1-5-11 *S-1-1-0`
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}
