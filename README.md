@@ -2,7 +2,7 @@
 
 Executável em Go, com interface interativa no terminal (TUI), para configurar
 uma workstation Windows recém-instalada: Windows Update, Chrome, Firefox, Git +
-Git Credential Manager, Microsoft 365 Apps (no lugar do LibreOffice/OnlyOffice),
+Git Credential Manager, LibreOffice e OnlyOffice,
 VSCode, DBeaver, Postman, DevToys, fnm/Node.js, PHP + Composer +
 driver SQL Server, Bitwarden, Telegram, Vesktop (Discord + Vencord), Spotify,
 WhatsApp, VLC, OBS Studio, Obsidian, Ente Auth, Gaphor, jogos (Steam, Heroic,
@@ -21,7 +21,6 @@ no final para as diferenças reais do Windows.
   com build).
 - `winget` disponível (App Installer da Microsoft Store atualizado).
 - Conta com direitos de Administrador (o programa se reabre pelo UAC).
-- Conta Microsoft 365 ativa para ativar o Office depois de instalado.
 
 ## Como usar
 
@@ -97,7 +96,6 @@ apps) vira aviso, não falha: os demais apps do módulo continuam. Use
 | `--fail-fast` | para no primeiro módulo que falhar |
 | `--list` | lista os módulos e sai |
 | `--devdrive-letter X` / `--devdrive-size GB` | letra e tamanho máximo do Dev Drive (padrão `D` e `150`; mínimo 50 GB) |
-| `--office-product ID` | Product ID do Microsoft 365 (padrão `O365ProPlusRetail`; use `O365HomePremRetail` para Personal/Family) |
 | `--ovpn-dir` / `--log-dir` | pastas de `.ovpn` e de logs (padrão: `OVPN\` e `logs\` ao lado do executável) |
 | `--version` | mostra a versão |
 
@@ -112,7 +110,7 @@ automaticamente e roda todos os módulos (menos os de `--skip`).
 | `windows_update` | PSWindowsUpdate + atualizações pendentes (sem reiniciar; avisa no final) |
 | `dev_drive` | Dev Drive (VHDX dinâmico em ReFS) para Projects e os caches de npm/Composer/pip/Cargo — ver abaixo |
 | `navegador_git` | Chrome, Firefox, Git, Git Credential Manager; Git com FSMonitor, cache de não rastreados e caminhos longos (também liberados no Windows) |
-| `office` | Microsoft 365 Apps via Office Deployment Tool |
+| `office` | LibreOffice e OnlyOffice Desktop Editors |
 | `dev_tools` | VSCode (com "Abrir com o Code" no Explorer), DBeaver, Postman, DevToys, fnm + Node.js LTS |
 | `php_sqlsrv` | PHP 8.5, Composer (instalador verificado por SHA-384), ODBC 18, `sqlsrv`/`pdo_sqlsrv` |
 | `bitwarden` | Bitwarden |
@@ -223,7 +221,7 @@ internal/
     winget.go                #   instalação via winget/Chocolatey, detecção de instalados
     apps.go                  #   bootstrap, Windows Update, apps, VirtualBox, Tailscale, OpenVPN
     devdrive.go              #   Dev Drive (VHDX ReFS), tarefa de montagem, caches de pacotes
-    office.go                #   Microsoft 365 via ODT
+    office.go                #   LibreOffice e OnlyOffice
     php.go                   #   PHP, php.ini, Composer, sqlsrv/pdo_sqlsrv
     perfil.go                #   PowerShell 7 + Oh My Posh, perfis 5.1/7
     windows.go               #   customização, desempenho, debloat, limpeza
@@ -273,8 +271,6 @@ Conventional Commits e, se houver `feat`/`fix`, publica a release.
   prompt — não é 100% garantido zero interação.
 - **Edição do Windows**: Hyper-V e `gpedit.msc` só existem em
   Pro/Enterprise/Education — por isso o VirtualBox em vez do Hyper-V.
-- **Licença do Office**: o módulo instala os apps, mas a ativação (login com
-  a conta Microsoft 365) é manual.
 - **sqlsrv/pdo_sqlsrv**: as DLLs vêm da release mais recente do
   [`microsoft/msphpsql`](https://github.com/microsoft/msphpsql); se ela ainda
   não tiver build para o PHP 8.5, o módulo avisa e pula.

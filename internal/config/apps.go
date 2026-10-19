@@ -81,11 +81,10 @@ var RustTools = []App{
 	{ID: "topgrade-rs.topgrade", Nome: "topgrade"},
 }
 
-// OfficeProductID é o produto instalado pelo Office Deployment Tool. Padrão
-// para assinaturas de negócio/enterprise do Microsoft 365 Apps; para
-// Microsoft 365 Personal/Family, troque para "O365HomePremRetail" (ou use
-// --office-product).
-const OfficeProductID = "O365ProPlusRetail"
+var Office = []App{
+	{ID: "TheDocumentFoundation.LibreOffice", Nome: "LibreOffice"},
+	{ID: "ONLYOFFICE.DesktopEditors", Nome: "OnlyOffice Desktop Editors"},
+}
 
 // DotfilesRepoURL é o repositório de onde vem a config do Oh My Posh (pasta
 // oh-my-posh/: tema, aliases, editor).
@@ -97,4 +96,3 @@ const DotfilesRepoURL = "https://github.com/vinicgobbi/Dotfiles.git"
 //   - Mission Center: substituído pelo Gerenciador de Tarefas.
 //   - Remmina: RDP já é nativo (mstsc).
 //   - ProtonPlus: gerencia o Proton, sem sentido no Windows.
-//   - LibreOffice/OnlyOffice: substituídos pelo Microsoft 365 Apps.

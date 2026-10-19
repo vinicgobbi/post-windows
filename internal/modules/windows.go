@@ -341,7 +341,7 @@ func ehNotebook(c *Ctx) bool {
 }
 
 // bloatware é uma lista conservadora — só o que quase ninguém usa depois de
-// trocar por VLC/Spotify/Telegram/Office. Ficam de fora de propósito: Teams
+// trocar por VLC/Spotify/Telegram/LibreOffice. Ficam de fora de propósito: Teams
 // (Chat), Widgets, Vincular ao Celular (YourPhone) e o Outlook novo
 // (Microsoft.OutlookForWindows).
 var bloatware = []string{

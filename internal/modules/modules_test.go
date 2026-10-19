@@ -97,15 +97,6 @@ func TestDllsSqlsrv(t *testing.T) {
 	}
 }
 
-func TestOfficeConfig(t *testing.T) {
-	if x := officeConfig(""); !strings.Contains(x, `Product ID="O365ProPlusRetail"`) {
-		t.Errorf("padrão: %s", x)
-	}
-	if x := officeConfig("O365HomePremRetail"); !strings.Contains(x, `Product ID="O365HomePremRetail"`) {
-		t.Errorf("personalizado: %s", x)
-	}
-}
-
 func TestHabilitarExtensoesExtDirAbsoluto(t *testing.T) {
 	// php.ini antigo migrado da pasta de uma versão anterior do pacote.
 	ini := "extension_dir = \"C:\\Users\\x\\AppData\\Local\\Microsoft\\WinGet\\Packages\\PHP.PHP.8.5_old\\ext\"\r\nextension=curl\r\n"

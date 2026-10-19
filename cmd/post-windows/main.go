@@ -1,5 +1,5 @@
 // post-windows configura uma workstation Windows recém-instalada: Windows
-// Update, navegador/Git, Microsoft 365, ferramentas de desenvolvimento, PHP +
+// Update, navegador/Git, LibreOffice/OnlyOffice, ferramentas de desenvolvimento, PHP +
 // SQL Server, apps de comunicação/produtividade/jogos, VirtualBox, Tailscale,
 // OpenVPN, Claude Code, Rust, perfil do PowerShell, customização, desempenho
 // e debloat — com uma TUI para escolher o que rodar.
@@ -20,7 +20,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
-	"github.com/vinicgobbi/post-windows/internal/config"
 	"github.com/vinicgobbi/post-windows/internal/engine"
 	"github.com/vinicgobbi/post-windows/internal/modules"
 	"github.com/vinicgobbi/post-windows/internal/plain"
@@ -52,7 +51,6 @@ type options struct {
 	elevated bool
 	ovpnDir  string
 	logDir   string
-	office   string
 	ddLetter string
 	ddGB     int
 }
@@ -70,7 +68,6 @@ func parseFlags() options {
 	flag.BoolVar(&o.elevated, flagElevado, false, "uso interno: execução reaberta pelo UAC")
 	flag.StringVar(&o.ovpnDir, "ovpn-dir", "", "pasta com os arquivos .ovpn a importar (padrão: OVPN\\ ao lado do executável)")
 	flag.StringVar(&o.logDir, "log-dir", "", "pasta onde os logs da execução são gravados (padrão: logs\\ ao lado do executável)")
-	flag.StringVar(&o.office, "office-product", config.OfficeProductID, "Product ID do Microsoft 365 no Office Deployment Tool (ex.: O365HomePremRetail para Personal/Family)")
 	flag.StringVar(&o.ddLetter, "devdrive-letter", "D", "letra da unidade do Dev Drive")
 	flag.IntVar(&o.ddGB, "devdrive-size", 150, "tamanho máximo do Dev Drive em GB (VHDX dinâmico: só ocupa o que for usado; mínimo 50)")
 	flag.Usage = func() {
@@ -201,7 +198,6 @@ func run(o options) int {
 			Runner:         &runner.Runner{Ctx: ctx, Log: log, DryRun: o.dryRun, WorkDir: workDir},
 			Sys:            sys,
 			OVPNDir:        o.ovpnDir,
-			OfficeProduct:  o.office,
 			DevDriveLetter: o.ddLetter,
 			DevDriveGB:     o.ddGB,
 		}
