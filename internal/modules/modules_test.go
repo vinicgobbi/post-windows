@@ -166,3 +166,11 @@ func TestScriptsDevDrive(t *testing.T) {
 		t.Errorf("tarefa:\n%s", tarefa)
 	}
 }
+
+func TestServicoDesativado(t *testing.T) {
+	desativado := "[SC] QueryServiceConfig SUCCESS\r\n\r\nSERVICE_NAME: DiagTrack\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        START_TYPE         : 4   DISABLED\r\n"
+	automatico := "SERVICE_NAME: DiagTrack\r\n        START_TYPE         : 2   AUTO_START\r\n"
+	if !reServicoDesativado.MatchString(desativado) || reServicoDesativado.MatchString(automatico) {
+		t.Error("detecção do START_TYPE errada")
+	}
+}

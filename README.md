@@ -126,7 +126,7 @@ automaticamente e roda todos os módulos (menos os de `--skip`).
 | `rust_tools` | rustup, eza, topgrade (binários nativos) |
 | `powershell_profile` | PowerShell 7 + Oh My Posh com a config do repositório de dotfiles + Nerd Font (requer `navegador_git`) |
 | `customizacao_windows` | tema escuro, extensões de arquivo, menu centralizado, sem pesquisa na barra, sem "Recomendado", Explorer em "Este Computador" e sem recentes/frequentes |
-| `performance` | pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, apps na inicialização desativados, Edge/Chrome sem segundo plano, verificação do Defender limitada a 30% de CPU, telemetria, apps em segundo plano, NTFS/TRIM, Defender/indexação, modo "Melhor desempenho" na tomada, hibernação (só desktop) |
+| `performance` | pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, apps na inicialização desativados, Edge/Chrome sem segundo plano, verificação do Defender limitada a 30% de CPU, apps em segundo plano só do usuário (sem afetar o Family Safety), NTFS/TRIM, Defender/indexação, modo "Melhor desempenho" na tomada, hibernação (só desktop) |
 | `debloat` | remove apps pré-instalados, Game DVR, sugestões, dicas e boas-vindas, busca web, destaques da pesquisa e tarefas de telemetria |
 | `limpeza` | temporários, componentes antigos do Windows (DISM, sem `/ResetBase`), cache do Delivery Optimization e do Chocolatey |
 
@@ -155,6 +155,16 @@ referência (block cloning).
   lá (mover exigiria reinstalar).
 - Se a letra já estiver em uso por outra unidade, o módulo avisa e pula (use
   `--devdrive-letter`). Exige Windows 11 22H2 (build 22621.2338) ou mais novo.
+
+### Family Safety
+
+As otimizações não atrapalham o controle parental da Microsoft numa conta de
+filho no mesmo PC: os apps em segundo plano são desligados só para quem roda
+o programa (não pela política de máquina, que pegaria o app Family Safety), e
+o serviço de telemetria (DiagTrack) fica no padrão do Windows — há relatos de
+que o relatório de atividade para de chegar sem ele. Se uma execução anterior
+tinha aplicado a política ou desligado o serviço, o módulo `performance`
+desfaz isso.
 
 ### PHP: php.ini fora da pasta do pacote
 

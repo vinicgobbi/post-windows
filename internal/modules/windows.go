@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -105,7 +106,7 @@ func reabrirExplorer(c *Ctx) {
 var performance = Module{
 	ID:    "performance",
 	Title: "Otimizações de desempenho",
-	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga telemetria (DiagTrack) e apps em segundo plano, NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
+	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga o dmwappushsvc e os apps em segundo plano do usuário (o Family Safety continua funcionando), NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
 	Run: func(c *Ctx) error {
 		c.Log.Infof("Aplicando otimizações de desempenho (sem mexer em efeitos visuais)...")
 		err := step(
@@ -128,10 +129,13 @@ var performance = Module{
 				})
 			},
 			func() error { return c.SetDWord(`HKLM\SOFTWARE\Policies\Google\Chrome`, "BackgroundModeEnabled", 0) },
-			// Apps em segundo plano: política "negar à força" (2) + o
-			// toggle legado, para builds mais antigas.
+			// Apps em segundo plano desligados só para quem roda o programa
+			// (HKCU). A política de máquina (LetAppsRunInBackground) não é
+			// usada: ela vale para todos os usuários, inclusive o app Family
+			// Safety na conta de um filho, que precisa rodar em segundo plano
+			// para aplicar os limites e mandar o relatório.
 			func() error {
-				return c.SetDWord(`HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy`, "LetAppsRunInBackground", 2)
+				return c.DeleteValue(`HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy`, "LetAppsRunInBackground")
 			},
 			func() error {
 				return c.SetDWord(`HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications`, "GlobalUserDisabled", 1)
@@ -145,15 +149,13 @@ var performance = Module{
 			return err
 		}
 
-		// Telemetria: "Connected User Experiences and Telemetry" e "WAP Push
-		// Message Routing" geram I/O de disco/rede periódico sem efeito
-		// percebido no dia a dia.
-		for _, s := range []string{"DiagTrack", "dmwappushsvc"} {
-			if c.Probe("sc.exe", "query", s) {
-				c.Try("sc.exe", "stop", s)
-				c.Try("sc.exe", "config", s, "start=", "disabled")
-			}
+		// "WAP Push Message Routing" gera I/O periódico sem efeito percebido
+		// no dia a dia.
+		if c.Probe("sc.exe", "query", "dmwappushsvc") {
+			c.Try("sc.exe", "stop", "dmwappushsvc")
+			c.Try("sc.exe", "config", "dmwappushsvc", "start=", "disabled")
 		}
+		religarDiagTrack(c)
 
 		// NTFS sem timestamp de último acesso (I/O a cada arquivo LIDO) e
 		// TRIM do SSD garantido (o Windows só manda TRIM a discos que
@@ -331,6 +333,22 @@ func modoMelhorDesempenho(c *Ctx, notebook bool) {
 		// desempenho), o controle deslizante some.
 		c.Log.Warnf("Não consegui ativar o modo de energia \"Melhor desempenho\" (ele só existe no plano Equilibrado).")
 	}
+}
+
+var reServicoDesativado = regexp.MustCompile(`START_TYPE\s*:\s*4\b`)
+
+// religarDiagTrack mantém o serviço de telemetria ("Connected User
+// Experiences and Telemetry") no padrão do Windows. Ele não é desligado: há
+// relatos de que o relatório de atividade do Family Safety para de chegar
+// sem ele. Se uma execução anterior o desativou, volta para automático.
+func religarDiagTrack(c *Ctx) {
+	out, err := c.Output("sc.exe", "qc", "DiagTrack")
+	if err != nil || !reServicoDesativado.MatchString(out) {
+		return
+	}
+	c.Log.Infof("Religando o serviço DiagTrack (desativado por uma execução anterior).")
+	c.Try("sc.exe", "config", "DiagTrack", "start=", "auto")
+	c.Try("sc.exe", "start", "DiagTrack")
 }
 
 // ehNotebook usa a presença de bateria — mais confiável que o ChassisType,

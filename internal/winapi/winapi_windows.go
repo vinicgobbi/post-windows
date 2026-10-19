@@ -126,7 +126,19 @@ func ValueNames(key string) ([]string, error) {
 
 // DeleteValue apaga um valor; não é erro se ele (ou a chave) não existir.
 func DeleteValue(key, name string) error {
-	k, err := abrir(key, registry.SET_VALUE)
+	root, sub, err := SplitKey(key)
+	if err != nil {
+		return err
+	}
+	base := registry.CURRENT_USER
+	if root == "HKLM" {
+		base = registry.LOCAL_MACHINE
+	}
+	// OpenKey, e não abrir(): apagar um valor não deve criar a chave.
+	k, err := registry.OpenKey(base, sub, registry.SET_VALUE)
+	if errors.Is(err, registry.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
