@@ -220,7 +220,7 @@ func pastaProjetos(c *Ctx) error {
 		}
 		c.Log.Warnf("Não consegui fixar %s no Acesso Rápido.", proj)
 	}
-	if err := naoIndexar(c, proj); err != nil {
+	if err := naoIndexar(c, append([]string{proj}, pastasDeCache()...)...); err != nil {
 		return err
 	}
 
@@ -385,6 +385,39 @@ func naoIndexar(c *Ctx, caminhos ...string) error {
 		c.Log.Warnf("Não consegui reiniciar o Windows Search (a exclusão vale no próximo boot): %v", err)
 	}
 	return nil
+}
+
+// pastasDeCache são as pastas de pacotes, caches e instalações de
+// ferramentas de dev: centenas de milhares de arquivos pequenos sem nada que
+// valha procurar pela busca do Windows. O AppData já fica fora da indexação
+// por padrão, mas é uma regra que o usuário pode desfazer; a política deixa
+// fixo. Entram também as que ainda não existem (ferramentas que venham a ser
+// instaladas depois, como pnpm, Yarn ou Bun). As que estiverem no Dev Drive
+// já saem junto com a unidade.
+func pastasDeCache() []string {
+	home, roaming, local := os.Getenv("USERPROFILE"), os.Getenv("APPDATA"), os.Getenv("LOCALAPPDATA")
+	return []string{
+		// Na pasta do usuário (indexada por padrão).
+		filepath.Join(home, ".cargo"),
+		filepath.Join(home, ".rustup"),
+		filepath.Join(home, ".vscode"), // extensões do VSCode
+		filepath.Join(home, ".bun"),
+		filepath.Join(home, ".cache"),
+		filepath.Join(home, ".nuget"),
+		// AppData\Roaming.
+		filepath.Join(roaming, "npm"),      // pacotes globais do npm
+		filepath.Join(roaming, "Composer"), // pacotes globais do Composer
+		filepath.Join(roaming, "fnm"),      // versões do Node
+		filepath.Join(roaming, "Code"),     // dados e caches do VSCode
+		// AppData\Local.
+		filepath.Join(local, "npm-cache"),
+		filepath.Join(local, "pnpm"), // pnpm (inclusive o store)
+		filepath.Join(local, "pnpm-cache"),
+		filepath.Join(local, "Composer"), // cache do Composer
+		filepath.Join(local, "pip"),
+		filepath.Join(local, "Yarn"),
+		filepath.Join(local, "Microsoft", "WinGet", "Packages"), // apps "portable" do winget (PHP...)
+	}
 }
 
 // urlIndexacao converte um caminho no formato de URL do Windows Search

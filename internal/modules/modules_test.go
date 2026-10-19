@@ -194,3 +194,18 @@ func TestURLIndexacao(t *testing.T) {
 		}
 	}
 }
+
+func TestPastasDeCache(t *testing.T) {
+	t.Setenv("USERPROFILE", `C:\Users\vini`)
+	t.Setenv("APPDATA", `C:\Users\vini\AppData\Roaming`)
+	t.Setenv("LOCALAPPDATA", `C:\Users\vini\AppData\Local`)
+	pastas := pastasDeCache()
+	for _, p := range pastas {
+		if !strings.HasPrefix(p, `C:\Users\vini`) {
+			t.Errorf("pasta fora do perfil: %s", p)
+		}
+	}
+	if len(pastas) < 10 {
+		t.Errorf("poucas pastas: %v", pastas)
+	}
+}

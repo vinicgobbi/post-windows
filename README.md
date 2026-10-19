@@ -157,7 +157,11 @@ referência (block cloning).
   a política "Impedir a indexação de determinados caminhos" (`file:///D:\*`)
   tira a unidade da indexação e impede que ela seja incluída de novo pelas
   Configurações. A pasta de projetos fica fora da indexação da mesma forma
-  mesmo sem Dev Drive (em `%USERPROFILE%\Projects`).
+  mesmo sem Dev Drive (em `%USERPROFILE%\Projects`), assim como as pastas de
+  pacotes, caches e instalações de ferramentas de dev fora do Dev Drive
+  (`~\.cargo`, `~\.rustup`, `~\.vscode`, npm, pnpm, Composer, pip, fnm,
+  Yarn, apps "portable" do winget etc.) — inclusive as que ainda não
+  existem, para ferramentas instaladas depois.
 - A unidade inteira fica acessível só para o seu usuário (além do SYSTEM e
   dos Administradores): num PC compartilhado, uma conta padrão — como a de
   um filho no Family Safety — não vê nem apaga nada nela. Isso só protege
