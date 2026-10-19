@@ -16,7 +16,7 @@ const tarefaDevDrive = "PostWindows-DevDrive"
 var devDrive = Module{
 	ID:    "dev_drive",
 	Title: "Criar Dev Drive",
-	Desc:  "Disco virtual (VHDX dinâmico) em ReFS para Projects e os caches de pacotes (npm, Composer, pip, Cargo/rustup), acessível só para o seu usuário, com o Defender em modo de desempenho no lugar das exclusões",
+	Desc:  "Disco virtual (VHDX dinâmico) em ReFS para Projects e os caches de pacotes (npm, Composer, pip, Cargo/rustup), acessível só para o seu usuário e fora da indexação, com o Defender em modo de desempenho no lugar das exclusões",
 	Run: func(c *Ctx) error {
 		// O Dev Drive chegou no Windows 11 22H2, build 22621.2338.
 		if c.Sys.Build < 22621 || (c.Sys.Build == 22621 && c.Sys.UBR < 2338) {
@@ -71,6 +71,10 @@ var devDrive = Module{
 			return err
 		}
 		if err := restringirDevDrive(c, raiz); err != nil {
+			return err
+		}
+		// Nada no Dev Drive é indexado: é só código e cache de pacotes.
+		if err := naoIndexar(c, raiz); err != nil {
 			return err
 		}
 		c.projetos = filepath.Join(raiz, "Projects")

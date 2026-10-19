@@ -153,6 +153,11 @@ referência (block cloning).
   não estiver instalado, `CARGO_HOME`/`RUSTUP_HOME` — o módulo roda antes
   dos que instalam essas ferramentas. Com o Rust já em `~\.cargo`, ele fica
   lá (mover exigiria reinstalar).
+- Nada no Dev Drive é indexado pelo Windows Search, nem nomes nem conteúdo:
+  a política "Impedir a indexação de determinados caminhos" (`file:///D:\*`)
+  tira a unidade da indexação e impede que ela seja incluída de novo pelas
+  Configurações. A pasta de projetos fica fora da indexação da mesma forma
+  mesmo sem Dev Drive (em `%USERPROFILE%\Projects`).
 - A unidade inteira fica acessível só para o seu usuário (além do SYSTEM e
   dos Administradores): num PC compartilhado, uma conta padrão — como a de
   um filho no Family Safety — não vê nem apaga nada nela. Isso só protege

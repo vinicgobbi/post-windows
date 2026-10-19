@@ -182,3 +182,15 @@ func TestArgsACLDevDrive(t *testing.T) {
 		t.Errorf("got  %s\nwant %s", got, want)
 	}
 }
+
+func TestURLIndexacao(t *testing.T) {
+	for in, want := range map[string]string{
+		`D:\`:                     `file:///D:\*`,
+		`D:\Projects`:             `file:///D:\Projects\*`,
+		`C:\Users\vini\Projects\`: `file:///C:\Users\vini\Projects\*`,
+	} {
+		if got := urlIndexacao(in); got != want {
+			t.Errorf("urlIndexacao(%q) = %q, esperado %q", in, got, want)
+		}
+	}
+}

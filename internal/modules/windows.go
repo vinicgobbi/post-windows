@@ -106,7 +106,7 @@ func reabrirExplorer(c *Ctx) {
 var performance = Module{
 	ID:    "performance",
 	Title: "Otimizações de desempenho",
-	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga o dmwappushsvc e os apps em segundo plano do usuário (o Family Safety continua funcionando), NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
+	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga o dmwappushsvc e os apps em segundo plano do usuário (o Family Safety continua funcionando), pasta de projetos fora da indexação, NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
 	Run: func(c *Ctx) error {
 		c.Log.Infof("Aplicando otimizações de desempenho (sem mexer em efeitos visuais)...")
 		err := step(
@@ -220,7 +220,9 @@ func pastaProjetos(c *Ctx) error {
 		}
 		c.Log.Warnf("Não consegui fixar %s no Acesso Rápido.", proj)
 	}
-	c.Try("attrib", "+I", proj)
+	if err := naoIndexar(c, proj); err != nil {
+		return err
+	}
 
 	var exclusoes []string
 	if !emDevDrive {
@@ -349,6 +351,46 @@ func religarDiagTrack(c *Ctx) {
 	c.Log.Infof("Religando o serviço DiagTrack (desativado por uma execução anterior).")
 	c.Try("sc.exe", "config", "DiagTrack", "start=", "auto")
 	c.Try("sc.exe", "start", "DiagTrack")
+}
+
+// keyNaoIndexar é a política "Impedir a indexação de determinados caminhos"
+// (Search.admx, PreventIndexingCertainPaths_1). Tem que ser a de máquina: a
+// versão por usuário não exclui caminhos de arquivo. É uma lista em que o
+// nome de cada valor é o próprio caminho.
+const keyNaoIndexar = `HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths`
+
+// naoIndexar tira os caminhos da indexação do Windows Search de vez — nem
+// nomes nem conteúdo: em pastas de código (node_modules, vendor, .git,
+// target) o indexador só gera I/O em segundo plano. A política também impede
+// que o caminho seja incluído de novo pelas Configurações. O atributo "não
+// indexar conteúdo" na pasta reforça para quem ignora a política.
+func naoIndexar(c *Ctx, caminhos ...string) error {
+	for _, p := range caminhos {
+		url := urlIndexacao(p)
+		if err := c.SetString(keyNaoIndexar, url, url); err != nil {
+			return err
+		}
+		// Na raiz de uma unidade, só a política: "attrib D:" seria a pasta
+		// atual do D:, e não a unidade.
+		if dir := strings.TrimRight(p, `\`); !strings.HasSuffix(dir, ":") {
+			c.Try("attrib", "+I", dir)
+		}
+	}
+	// O indexador só relê a política ao reiniciar; o que já estava indexado
+	// nesses caminhos sai na reindexação.
+	if err := c.PowerShell(`if (Get-Service WSearch -ErrorAction SilentlyContinue | Where-Object Status -eq 'Running') { Restart-Service WSearch -Force }`); err != nil {
+		if c.Ctx.Err() != nil {
+			return err
+		}
+		c.Log.Warnf("Não consegui reiniciar o Windows Search (a exclusão vale no próximo boot): %v", err)
+	}
+	return nil
+}
+
+// urlIndexacao converte um caminho no formato de URL do Windows Search
+// ("file:///D:\Projects\*"), que vale para a pasta e tudo dentro dela.
+func urlIndexacao(p string) string {
+	return "file:///" + strings.TrimRight(p, `\`) + `\*`
 }
 
 // ehNotebook usa a presença de bateria — mais confiável que o ChassisType,
