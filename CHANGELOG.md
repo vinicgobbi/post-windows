@@ -1,3 +1,17 @@
+## v1.2.0 (2026-10-23)
+
+### Feat
+
+- instala ferramentas de terminal, Ruby/Jekyll e deploy-dev
+- pastas de cache e pacotes de dev fora da indexação
+- Dev Drive e pasta de projetos fora da indexação do Windows
+- Dev Drive acessível só para o usuário que roda o programa
+- troca o Microsoft 365 pelo LibreOffice e OnlyOffice
+
+### Fix
+
+- mantém o Family Safety funcionando com as otimizações
+
 ## v1.1.0 (2026-10-17)
 
 ### Feat
