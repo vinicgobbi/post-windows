@@ -16,7 +16,7 @@ const tarefaDevDrive = "PostWindows-DevDrive"
 var devDrive = Module{
 	ID:    "dev_drive",
 	Title: "Criar Dev Drive",
-	Desc:  "Disco virtual (VHDX dinâmico) em ReFS para Projects e os caches de pacotes (npm, Composer, pip, Cargo/rustup), com o Defender em modo de desempenho no lugar das exclusões",
+	Desc:  "Disco virtual (VHDX dinâmico) em ReFS para Projects e os caches de pacotes (npm, Composer, pip, Cargo/rustup), acessível só para o seu usuário e fora da indexação, com o Defender em modo de desempenho no lugar das exclusões",
 	Run: func(c *Ctx) error {
 		// O Dev Drive chegou no Windows 11 22H2, build 22621.2338.
 		if c.Sys.Build < 22621 || (c.Sys.Build == 22621 && c.Sys.UBR < 2338) {
@@ -70,8 +70,15 @@ var devDrive = Module{
 		if err := configurarPastasDevDrive(c, raiz); err != nil {
 			return err
 		}
+		if err := restringirDevDrive(c, raiz); err != nil {
+			return err
+		}
+		// Nada no Dev Drive é indexado: é só código e cache de pacotes.
+		if err := naoIndexar(c, raiz); err != nil {
+			return err
+		}
 		c.projetos = filepath.Join(raiz, "Projects")
-		c.Log.Successf("Dev Drive %s pronto: Projects e caches de pacotes ficam nele.", raiz)
+		c.Log.Successf("Dev Drive %s pronto e acessível só para %s: Projects e caches de pacotes ficam nele.", raiz, os.Getenv("USERNAME"))
 		return nil
 	},
 }
@@ -177,6 +184,45 @@ func configurarPastasDevDrive(c *Ctx, raiz string) error {
 		c.Log.Warnf("%s tem conteúdo: mova os projetos para %sProjects quando puder (não movo sozinho).", antiga, raiz)
 	}
 	return nil
+}
+
+// SIDs bem conhecidos (iguais em qualquer idioma do Windows, ao contrário
+// dos nomes "Usuários", "Users"...).
+const (
+	sidSystem       = "S-1-5-18"
+	sidAdmins       = "S-1-5-32-544"
+	sidUsuarios     = "S-1-5-32-545"
+	sidAutenticados = "S-1-5-11"
+	sidTodos        = "S-1-1-0"
+)
+
+// restringirDevDrive deixa a unidade inteira acessível só para quem roda o
+// programa (num PC compartilhado, a conta de outra pessoa — por exemplo um
+// filho no Family Safety — não vê nem apaga nada). Ficam com acesso total o
+// usuário, o SYSTEM (Defender, indexação, a tarefa que monta o VHDX) e os
+// Administradores; saem Usuários, Usuários autenticados e Todos, que é por
+// onde uma conta padrão teria acesso. As pastas existentes herdam a mudança.
+func restringirDevDrive(c *Ctx, raiz string) error {
+	sid, err := c.PSOutput(`[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value`)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(sid, "S-1-") {
+		return errorf("SID do usuário atual inválido: %q", sid)
+	}
+	return c.Run("icacls", argsACLDevDrive(raiz, sid)...)
+}
+
+func argsACLDevDrive(raiz, sid string) []string {
+	args := []string{raiz, "/inheritance:r", "/grant:r"}
+	for _, s := range []string{sid, sidSystem, sidAdmins} {
+		args = append(args, "*"+s+":(OI)(CI)F")
+	}
+	args = append(args, "/remove:g")
+	for _, s := range []string{sidUsuarios, sidAutenticados, sidTodos} {
+		args = append(args, "*"+s)
+	}
+	return args
 }
 
 // projetosDir é onde fica a pasta de projetos: no Dev Drive, se ele foi

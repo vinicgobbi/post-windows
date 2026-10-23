@@ -24,8 +24,6 @@ type Ctx struct {
 	*runner.Runner
 	Sys     *sysinfo.Info
 	OVPNDir string
-	// OfficeProduct é o Product ID do Office Deployment Tool.
-	OfficeProduct string
 	// DevDriveLetter e DevDriveGB são a letra e o tamanho máximo do Dev
 	// Drive.
 	DevDriveLetter string
@@ -58,6 +56,9 @@ func All() []Module {
 		logitechOptions,
 		ovpn,
 		claudeCode,
+		ferramentas,
+		ruby,
+		deployDev,
 		rustTools,
 		powershellProfile,
 		customizacaoWindows,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -105,7 +106,7 @@ func reabrirExplorer(c *Ctx) {
 var performance = Module{
 	ID:    "performance",
 	Title: "Otimizações de desempenho",
-	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga telemetria (DiagTrack) e apps em segundo plano, NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
+	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga o dmwappushsvc e os apps em segundo plano do usuário (o Family Safety continua funcionando), pasta de projetos fora da indexação, NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
 	Run: func(c *Ctx) error {
 		c.Log.Infof("Aplicando otimizações de desempenho (sem mexer em efeitos visuais)...")
 		err := step(
@@ -128,10 +129,13 @@ var performance = Module{
 				})
 			},
 			func() error { return c.SetDWord(`HKLM\SOFTWARE\Policies\Google\Chrome`, "BackgroundModeEnabled", 0) },
-			// Apps em segundo plano: política "negar à força" (2) + o
-			// toggle legado, para builds mais antigas.
+			// Apps em segundo plano desligados só para quem roda o programa
+			// (HKCU). A política de máquina (LetAppsRunInBackground) não é
+			// usada: ela vale para todos os usuários, inclusive o app Family
+			// Safety na conta de um filho, que precisa rodar em segundo plano
+			// para aplicar os limites e mandar o relatório.
 			func() error {
-				return c.SetDWord(`HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy`, "LetAppsRunInBackground", 2)
+				return c.DeleteValue(`HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy`, "LetAppsRunInBackground")
 			},
 			func() error {
 				return c.SetDWord(`HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications`, "GlobalUserDisabled", 1)
@@ -145,15 +149,13 @@ var performance = Module{
 			return err
 		}
 
-		// Telemetria: "Connected User Experiences and Telemetry" e "WAP Push
-		// Message Routing" geram I/O de disco/rede periódico sem efeito
-		// percebido no dia a dia.
-		for _, s := range []string{"DiagTrack", "dmwappushsvc"} {
-			if c.Probe("sc.exe", "query", s) {
-				c.Try("sc.exe", "stop", s)
-				c.Try("sc.exe", "config", s, "start=", "disabled")
-			}
+		// "WAP Push Message Routing" gera I/O periódico sem efeito percebido
+		// no dia a dia.
+		if c.Probe("sc.exe", "query", "dmwappushsvc") {
+			c.Try("sc.exe", "stop", "dmwappushsvc")
+			c.Try("sc.exe", "config", "dmwappushsvc", "start=", "disabled")
 		}
+		religarDiagTrack(c)
 
 		// NTFS sem timestamp de último acesso (I/O a cada arquivo LIDO) e
 		// TRIM do SSD garantido (o Windows só manda TRIM a discos que
@@ -218,7 +220,9 @@ func pastaProjetos(c *Ctx) error {
 		}
 		c.Log.Warnf("Não consegui fixar %s no Acesso Rápido.", proj)
 	}
-	c.Try("attrib", "+I", proj)
+	if err := naoIndexar(c, append([]string{proj}, pastasDeCache()...)...); err != nil {
+		return err
+	}
 
 	var exclusoes []string
 	if !emDevDrive {
@@ -333,6 +337,95 @@ func modoMelhorDesempenho(c *Ctx, notebook bool) {
 	}
 }
 
+var reServicoDesativado = regexp.MustCompile(`START_TYPE\s*:\s*4\b`)
+
+// religarDiagTrack mantém o serviço de telemetria ("Connected User
+// Experiences and Telemetry") no padrão do Windows. Ele não é desligado: há
+// relatos de que o relatório de atividade do Family Safety para de chegar
+// sem ele. Se uma execução anterior o desativou, volta para automático.
+func religarDiagTrack(c *Ctx) {
+	out, err := c.Output("sc.exe", "qc", "DiagTrack")
+	if err != nil || !reServicoDesativado.MatchString(out) {
+		return
+	}
+	c.Log.Infof("Religando o serviço DiagTrack (desativado por uma execução anterior).")
+	c.Try("sc.exe", "config", "DiagTrack", "start=", "auto")
+	c.Try("sc.exe", "start", "DiagTrack")
+}
+
+// keyNaoIndexar é a política "Impedir a indexação de determinados caminhos"
+// (Search.admx, PreventIndexingCertainPaths_1). Tem que ser a de máquina: a
+// versão por usuário não exclui caminhos de arquivo. É uma lista em que o
+// nome de cada valor é o próprio caminho.
+const keyNaoIndexar = `HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths`
+
+// naoIndexar tira os caminhos da indexação do Windows Search de vez — nem
+// nomes nem conteúdo: em pastas de código (node_modules, vendor, .git,
+// target) o indexador só gera I/O em segundo plano. A política também impede
+// que o caminho seja incluído de novo pelas Configurações. O atributo "não
+// indexar conteúdo" na pasta reforça para quem ignora a política.
+func naoIndexar(c *Ctx, caminhos ...string) error {
+	for _, p := range caminhos {
+		url := urlIndexacao(p)
+		if err := c.SetString(keyNaoIndexar, url, url); err != nil {
+			return err
+		}
+		// Na raiz de uma unidade, só a política: "attrib D:" seria a pasta
+		// atual do D:, e não a unidade.
+		if dir := strings.TrimRight(p, `\`); !strings.HasSuffix(dir, ":") {
+			c.Try("attrib", "+I", dir)
+		}
+	}
+	// O indexador só relê a política ao reiniciar; o que já estava indexado
+	// nesses caminhos sai na reindexação.
+	if err := c.PowerShell(`if (Get-Service WSearch -ErrorAction SilentlyContinue | Where-Object Status -eq 'Running') { Restart-Service WSearch -Force }`); err != nil {
+		if c.Ctx.Err() != nil {
+			return err
+		}
+		c.Log.Warnf("Não consegui reiniciar o Windows Search (a exclusão vale no próximo boot): %v", err)
+	}
+	return nil
+}
+
+// pastasDeCache são as pastas de pacotes, caches e instalações de
+// ferramentas de dev: centenas de milhares de arquivos pequenos sem nada que
+// valha procurar pela busca do Windows. O AppData já fica fora da indexação
+// por padrão, mas é uma regra que o usuário pode desfazer; a política deixa
+// fixo. Entram também as que ainda não existem (ferramentas que venham a ser
+// instaladas depois, como pnpm, Yarn ou Bun). As que estiverem no Dev Drive
+// já saem junto com a unidade.
+func pastasDeCache() []string {
+	home, roaming, local := os.Getenv("USERPROFILE"), os.Getenv("APPDATA"), os.Getenv("LOCALAPPDATA")
+	return []string{
+		// Na pasta do usuário (indexada por padrão).
+		filepath.Join(home, ".cargo"),
+		filepath.Join(home, ".rustup"),
+		filepath.Join(home, ".vscode"), // extensões do VSCode
+		filepath.Join(home, ".bun"),
+		filepath.Join(home, ".cache"),
+		filepath.Join(home, ".nuget"),
+		// AppData\Roaming.
+		filepath.Join(roaming, "npm"),      // pacotes globais do npm
+		filepath.Join(roaming, "Composer"), // pacotes globais do Composer
+		filepath.Join(roaming, "fnm"),      // versões do Node
+		filepath.Join(roaming, "Code"),     // dados e caches do VSCode
+		// AppData\Local.
+		filepath.Join(local, "npm-cache"),
+		filepath.Join(local, "pnpm"), // pnpm (inclusive o store)
+		filepath.Join(local, "pnpm-cache"),
+		filepath.Join(local, "Composer"), // cache do Composer
+		filepath.Join(local, "pip"),
+		filepath.Join(local, "Yarn"),
+		filepath.Join(local, "Microsoft", "WinGet", "Packages"), // apps "portable" do winget (PHP...)
+	}
+}
+
+// urlIndexacao converte um caminho no formato de URL do Windows Search
+// ("file:///D:\Projects\*"), que vale para a pasta e tudo dentro dela.
+func urlIndexacao(p string) string {
+	return "file:///" + strings.TrimRight(p, `\`) + `\*`
+}
+
 // ehNotebook usa a presença de bateria — mais confiável que o ChassisType,
 // que alguns fabricantes preenchem errado.
 func ehNotebook(c *Ctx) bool {
@@ -341,7 +434,7 @@ func ehNotebook(c *Ctx) bool {
 }
 
 // bloatware é uma lista conservadora — só o que quase ninguém usa depois de
-// trocar por VLC/Spotify/Telegram/Office. Ficam de fora de propósito: Teams
+// trocar por VLC/Spotify/Telegram/LibreOffice. Ficam de fora de propósito: Teams
 // (Chat), Widgets, Vincular ao Celular (YourPhone) e o Outlook novo
 // (Microsoft.OutlookForWindows).
 var bloatware = []string{

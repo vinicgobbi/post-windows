@@ -97,15 +97,6 @@ func TestDllsSqlsrv(t *testing.T) {
 	}
 }
 
-func TestOfficeConfig(t *testing.T) {
-	if x := officeConfig(""); !strings.Contains(x, `Product ID="O365ProPlusRetail"`) {
-		t.Errorf("padrão: %s", x)
-	}
-	if x := officeConfig("O365HomePremRetail"); !strings.Contains(x, `Product ID="O365HomePremRetail"`) {
-		t.Errorf("personalizado: %s", x)
-	}
-}
-
 func TestHabilitarExtensoesExtDirAbsoluto(t *testing.T) {
 	// php.ini antigo migrado da pasta de uma versão anterior do pacote.
 	ini := "extension_dir = \"C:\\Users\\x\\AppData\\Local\\Microsoft\\WinGet\\Packages\\PHP.PHP.8.5_old\\ext\"\r\nextension=curl\r\n"
@@ -154,7 +145,7 @@ func TestDevDriveAntesDosCaches(t *testing.T) {
 	for i, m := range All() {
 		pos[m.ID] = i
 	}
-	for _, id := range []string{"dev_tools", "php_sqlsrv", "rust_tools", "performance"} {
+	for _, id := range []string{"dev_tools", "php_sqlsrv", "ferramentas", "rust_tools", "performance"} {
 		if pos["dev_drive"] > pos[id] {
 			t.Errorf("dev_drive precisa rodar antes de %s", id)
 		}
@@ -173,5 +164,48 @@ func TestScriptsDevDrive(t *testing.T) {
 	// aspas simples dobradas.
 	if tarefa := tarefaDevDriveScript(vhd); !strings.Contains(tarefa, `-ImagePath ''C:\DevDrive\DevDrive.vhdx''`) || !strings.Contains(tarefa, "-AtStartup") {
 		t.Errorf("tarefa:\n%s", tarefa)
+	}
+}
+
+func TestServicoDesativado(t *testing.T) {
+	desativado := "[SC] QueryServiceConfig SUCCESS\r\n\r\nSERVICE_NAME: DiagTrack\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        START_TYPE         : 4   DISABLED\r\n"
+	automatico := "SERVICE_NAME: DiagTrack\r\n        START_TYPE         : 2   AUTO_START\r\n"
+	if !reServicoDesativado.MatchString(desativado) || reServicoDesativado.MatchString(automatico) {
+		t.Error("detecção do START_TYPE errada")
+	}
+}
+
+func TestArgsACLDevDrive(t *testing.T) {
+	got := strings.Join(argsACLDevDrive(`D:\`, "S-1-5-21-1-2-3-1001"), " ")
+	want := `D:\ /inheritance:r /grant:r *S-1-5-21-1-2-3-1001:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /remove:g *S-1-5-32-545 *S-1-5-11 *S-1-1-0`
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestURLIndexacao(t *testing.T) {
+	for in, want := range map[string]string{
+		`D:\`:                     `file:///D:\*`,
+		`D:\Projects`:             `file:///D:\Projects\*`,
+		`C:\Users\vini\Projects\`: `file:///C:\Users\vini\Projects\*`,
+	} {
+		if got := urlIndexacao(in); got != want {
+			t.Errorf("urlIndexacao(%q) = %q, esperado %q", in, got, want)
+		}
+	}
+}
+
+func TestPastasDeCache(t *testing.T) {
+	t.Setenv("USERPROFILE", `C:\Users\vini`)
+	t.Setenv("APPDATA", `C:\Users\vini\AppData\Roaming`)
+	t.Setenv("LOCALAPPDATA", `C:\Users\vini\AppData\Local`)
+	pastas := pastasDeCache()
+	for _, p := range pastas {
+		if !strings.HasPrefix(p, `C:\Users\vini`) {
+			t.Errorf("pasta fora do perfil: %s", p)
+		}
+	}
+	if len(pastas) < 10 {
+		t.Errorf("poucas pastas: %v", pastas)
 	}
 }

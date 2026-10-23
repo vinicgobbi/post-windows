@@ -2,14 +2,16 @@
 
 Executável em Go, com interface interativa no terminal (TUI), para configurar
 uma workstation Windows recém-instalada: Windows Update, Chrome, Firefox, Git +
-Git Credential Manager, Microsoft 365 Apps (no lugar do LibreOffice/OnlyOffice),
+Git Credential Manager, LibreOffice e OnlyOffice,
 VSCode, DBeaver, Postman, DevToys, fnm/Node.js, PHP + Composer +
 driver SQL Server, Bitwarden, Telegram, Vesktop (Discord + Vencord), Spotify,
 WhatsApp, VLC, OBS Studio, Obsidian, Ente Auth, Gaphor, jogos (Steam, Heroic,
 Prism Launcher), WinBox, qBittorrent, FileZilla, VirtualBox, Tailscale, Logi
-Options+, importação de perfis OpenVPN, Claude Code, Rust (rustup, eza,
-topgrade), PowerShell 7 + Oh My Posh, Dev Drive, customização/debloat do
-Windows e otimizações de desempenho (sem mexer em efeitos visuais).
+Options+, importação de perfis OpenVPN, Claude Code, ferramentas de terminal
+(GitHub CLI, Gitea CLI, bat, btop4win, FFmpeg, Nmap, Python + pipx), Ruby +
+Bundler + Jekyll, deploy-dev, Rust (rustup, eza, topgrade), PowerShell 7 +
+Oh My Posh, Dev Drive, customização/debloat do Windows e otimizações de
+desempenho (sem mexer em efeitos visuais).
 
 Contraparte do [`post-install`](https://github.com/vinicgobbi/post-install)
 (Linux), com a mesma arquitetura e a mesma TUI — ver "Limitações conhecidas"
@@ -21,7 +23,6 @@ no final para as diferenças reais do Windows.
   com build).
 - `winget` disponível (App Installer da Microsoft Store atualizado).
 - Conta com direitos de Administrador (o programa se reabre pelo UAC).
-- Conta Microsoft 365 ativa para ativar o Office depois de instalado.
 
 ## Como usar
 
@@ -97,7 +98,6 @@ apps) vira aviso, não falha: os demais apps do módulo continuam. Use
 | `--fail-fast` | para no primeiro módulo que falhar |
 | `--list` | lista os módulos e sai |
 | `--devdrive-letter X` / `--devdrive-size GB` | letra e tamanho máximo do Dev Drive (padrão `D` e `150`; mínimo 50 GB) |
-| `--office-product ID` | Product ID do Microsoft 365 (padrão `O365ProPlusRetail`; use `O365HomePremRetail` para Personal/Family) |
 | `--ovpn-dir` / `--log-dir` | pastas de `.ovpn` e de logs (padrão: `OVPN\` e `logs\` ao lado do executável) |
 | `--version` | mostra a versão |
 
@@ -112,7 +112,7 @@ automaticamente e roda todos os módulos (menos os de `--skip`).
 | `windows_update` | PSWindowsUpdate + atualizações pendentes (sem reiniciar; avisa no final) |
 | `dev_drive` | Dev Drive (VHDX dinâmico em ReFS) para Projects e os caches de npm/Composer/pip/Cargo — ver abaixo |
 | `navegador_git` | Chrome, Firefox, Git, Git Credential Manager; Git com FSMonitor, cache de não rastreados e caminhos longos (também liberados no Windows) |
-| `office` | Microsoft 365 Apps via Office Deployment Tool |
+| `office` | LibreOffice e OnlyOffice Desktop Editors |
 | `dev_tools` | VSCode (com "Abrir com o Code" no Explorer), DBeaver, Postman, DevToys, fnm + Node.js LTS |
 | `php_sqlsrv` | PHP 8.5, Composer (instalador verificado por SHA-384), ODBC 18, `sqlsrv`/`pdo_sqlsrv` |
 | `bitwarden` | Bitwarden |
@@ -125,10 +125,13 @@ automaticamente e roda todos os módulos (menos os de `--skip`).
 | `logitech_options` | Logi Options+ (equivalente ao Solaar) |
 | `ovpn` | OpenVPN GUI + perfis de `OVPN\` |
 | `claude_code` | Claude Code |
+| `ferramentas` | GitHub CLI, Gitea CLI (`tea`), bat, btop4win, FFmpeg, Nmap (Chocolatey), Python 3.14 + pipx |
+| `ruby` | Ruby 3.4 com DevKit (`ridk install 3`), Bundler e Jekyll; `bundle install` em `vendor/bundle` |
+| `deploy_dev` | deploy-dev (última release do deploy-tools, SHA-256 conferido) |
 | `rust_tools` | rustup, eza, topgrade (binários nativos) |
 | `powershell_profile` | PowerShell 7 + Oh My Posh com a config do repositório de dotfiles + Nerd Font (requer `navegador_git`) |
 | `customizacao_windows` | tema escuro, extensões de arquivo, menu centralizado, sem pesquisa na barra, sem "Recomendado", Explorer em "Este Computador" e sem recentes/frequentes |
-| `performance` | pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, apps na inicialização desativados, Edge/Chrome sem segundo plano, verificação do Defender limitada a 30% de CPU, telemetria, apps em segundo plano, NTFS/TRIM, Defender/indexação, modo "Melhor desempenho" na tomada, hibernação (só desktop) |
+| `performance` | pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, apps na inicialização desativados, Edge/Chrome sem segundo plano, verificação do Defender limitada a 30% de CPU, apps em segundo plano só do usuário (sem afetar o Family Safety), NTFS/TRIM, Defender/indexação, modo "Melhor desempenho" na tomada, hibernação (só desktop) |
 | `debloat` | remove apps pré-instalados, Game DVR, sugestões, dicas e boas-vindas, busca web, destaques da pesquisa e tarefas de telemetria |
 | `limpeza` | temporários, componentes antigos do Windows (DISM, sem `/ResetBase`), cache do Delivery Optimization e do Chocolatey |
 
@@ -155,8 +158,32 @@ referência (block cloning).
   não estiver instalado, `CARGO_HOME`/`RUSTUP_HOME` — o módulo roda antes
   dos que instalam essas ferramentas. Com o Rust já em `~\.cargo`, ele fica
   lá (mover exigiria reinstalar).
+- Nada no Dev Drive é indexado pelo Windows Search, nem nomes nem conteúdo:
+  a política "Impedir a indexação de determinados caminhos" (`file:///D:\*`)
+  tira a unidade da indexação e impede que ela seja incluída de novo pelas
+  Configurações. A pasta de projetos fica fora da indexação da mesma forma
+  mesmo sem Dev Drive (em `%USERPROFILE%\Projects`), assim como as pastas de
+  pacotes, caches e instalações de ferramentas de dev fora do Dev Drive
+  (`~\.cargo`, `~\.rustup`, `~\.vscode`, npm, pnpm, Composer, pip, fnm,
+  Yarn, apps "portable" do winget etc.) — inclusive as que ainda não
+  existem, para ferramentas instaladas depois.
+- A unidade inteira fica acessível só para o seu usuário (além do SYSTEM e
+  dos Administradores): num PC compartilhado, uma conta padrão — como a de
+  um filho no Family Safety — não vê nem apaga nada nela. Isso só protege
+  enquanto a outra conta for de "Usuário padrão": um administrador consegue
+  tomar posse de qualquer pasta.
 - Se a letra já estiver em uso por outra unidade, o módulo avisa e pula (use
   `--devdrive-letter`). Exige Windows 11 22H2 (build 22621.2338) ou mais novo.
+
+### Family Safety
+
+As otimizações não atrapalham o controle parental da Microsoft numa conta de
+filho no mesmo PC: os apps em segundo plano são desligados só para quem roda
+o programa (não pela política de máquina, que pegaria o app Family Safety), e
+o serviço de telemetria (DiagTrack) fica no padrão do Windows — há relatos de
+que o relatório de atividade para de chegar sem ele. Se uma execução anterior
+tinha aplicado a política ou desligado o serviço, o módulo `performance`
+desfaz isso.
 
 ### PHP: php.ini fora da pasta do pacote
 
@@ -185,8 +212,10 @@ O `winget` é o gerenciador principal. Os apps já instalados são detectados
 de uma vez com `winget export` (a tabela do `winget list` trunca IDs longos),
 e os códigos de saída próprios do winget são tratados: "já instalado" conta
 como sucesso, e "reinicie para concluir" vira aviso. Quando um app não tem
-pacote no winget (ex.: FileZilla) ou a instalação falha, o programa cai para
-o Chocolatey, instalado sob demanda só na primeira vez que for preciso.
+pacote no winget (ex.: FileZilla) ou o pacote de lá está defasado (ex.: Nmap),
+ele vai direto pelo Chocolatey; quando a instalação pelo winget falha, o
+programa cai para o Chocolatey. O Chocolatey é instalado sob demanda, só na
+primeira vez que for preciso.
 
 Spotify e WhatsApp falham quando o winget roda elevado; para eles o programa
 cria uma tarefa agendada temporária com `RunLevel Limited`, que roda o
@@ -223,7 +252,7 @@ internal/
     winget.go                #   instalação via winget/Chocolatey, detecção de instalados
     apps.go                  #   bootstrap, Windows Update, apps, VirtualBox, Tailscale, OpenVPN
     devdrive.go              #   Dev Drive (VHDX ReFS), tarefa de montagem, caches de pacotes
-    office.go                #   Microsoft 365 via ODT
+    office.go                #   LibreOffice e OnlyOffice
     php.go                   #   PHP, php.ini, Composer, sqlsrv/pdo_sqlsrv
     perfil.go                #   PowerShell 7 + Oh My Posh, perfis 5.1/7
     windows.go               #   customização, desempenho, debloat, limpeza
@@ -273,8 +302,6 @@ Conventional Commits e, se houver `feat`/`fix`, publica a release.
   prompt — não é 100% garantido zero interação.
 - **Edição do Windows**: Hyper-V e `gpedit.msc` só existem em
   Pro/Enterprise/Education — por isso o VirtualBox em vez do Hyper-V.
-- **Licença do Office**: o módulo instala os apps, mas a ativação (login com
-  a conta Microsoft 365) é manual.
 - **sqlsrv/pdo_sqlsrv**: as DLLs vêm da release mais recente do
   [`microsoft/msphpsql`](https://github.com/microsoft/msphpsql); se ela ainda
   não tiver build para o PHP 8.5, o módulo avisa e pula.

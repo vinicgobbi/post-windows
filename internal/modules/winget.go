@@ -82,6 +82,9 @@ func (c *Ctx) wingetInstalado(id string) bool {
 // que não instala não deve impedir os outros do módulo. Só devolve erro em
 // cancelamento.
 func (c *Ctx) installApp(app config.App) error {
+	if app.ID == "" {
+		return c.chocoInstall(app.Choco, app.Nome)
+	}
 	if c.wingetInstalado(app.ID) {
 		c.Log.Successf("%s já está instalado.", app.Nome)
 		return nil
