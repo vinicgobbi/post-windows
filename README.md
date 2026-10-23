@@ -7,9 +7,11 @@ VSCode, DBeaver, Postman, DevToys, fnm/Node.js, PHP + Composer +
 driver SQL Server, Bitwarden, Telegram, Vesktop (Discord + Vencord), Spotify,
 WhatsApp, VLC, OBS Studio, Obsidian, Ente Auth, Gaphor, jogos (Steam, Heroic,
 Prism Launcher), WinBox, qBittorrent, FileZilla, VirtualBox, Tailscale, Logi
-Options+, importação de perfis OpenVPN, Claude Code, Rust (rustup, eza,
-topgrade), PowerShell 7 + Oh My Posh, Dev Drive, customização/debloat do
-Windows e otimizações de desempenho (sem mexer em efeitos visuais).
+Options+, importação de perfis OpenVPN, Claude Code, ferramentas de terminal
+(GitHub CLI, Gitea CLI, bat, btop4win, FFmpeg, Nmap, Python + pipx), Ruby +
+Bundler + Jekyll, deploy-dev, Rust (rustup, eza, topgrade), PowerShell 7 +
+Oh My Posh, Dev Drive, customização/debloat do Windows e otimizações de
+desempenho (sem mexer em efeitos visuais).
 
 Contraparte do [`post-install`](https://github.com/vinicgobbi/post-install)
 (Linux), com a mesma arquitetura e a mesma TUI — ver "Limitações conhecidas"
@@ -123,6 +125,9 @@ automaticamente e roda todos os módulos (menos os de `--skip`).
 | `logitech_options` | Logi Options+ (equivalente ao Solaar) |
 | `ovpn` | OpenVPN GUI + perfis de `OVPN\` |
 | `claude_code` | Claude Code |
+| `ferramentas` | GitHub CLI, Gitea CLI (`tea`), bat, btop4win, FFmpeg, Nmap (Chocolatey), Python 3.14 + pipx |
+| `ruby` | Ruby 3.4 com DevKit (`ridk install 3`), Bundler e Jekyll; `bundle install` em `vendor/bundle` |
+| `deploy_dev` | deploy-dev (última release do deploy-tools, SHA-256 conferido) |
 | `rust_tools` | rustup, eza, topgrade (binários nativos) |
 | `powershell_profile` | PowerShell 7 + Oh My Posh com a config do repositório de dotfiles + Nerd Font (requer `navegador_git`) |
 | `customizacao_windows` | tema escuro, extensões de arquivo, menu centralizado, sem pesquisa na barra, sem "Recomendado", Explorer em "Este Computador" e sem recentes/frequentes |
@@ -207,8 +212,10 @@ O `winget` é o gerenciador principal. Os apps já instalados são detectados
 de uma vez com `winget export` (a tabela do `winget list` trunca IDs longos),
 e os códigos de saída próprios do winget são tratados: "já instalado" conta
 como sucesso, e "reinicie para concluir" vira aviso. Quando um app não tem
-pacote no winget (ex.: FileZilla) ou a instalação falha, o programa cai para
-o Chocolatey, instalado sob demanda só na primeira vez que for preciso.
+pacote no winget (ex.: FileZilla) ou o pacote de lá está defasado (ex.: Nmap),
+ele vai direto pelo Chocolatey; quando a instalação pelo winget falha, o
+programa cai para o Chocolatey. O Chocolatey é instalado sob demanda, só na
+primeira vez que for preciso.
 
 Spotify e WhatsApp falham quando o winget roda elevado; para eles o programa
 cria uma tarefa agendada temporária com `RunLevel Limited`, que roda o

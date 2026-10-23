@@ -4,6 +4,7 @@ package config
 
 // App é um pacote do winget (ID confirmado com "winget search").
 type App struct {
+	// ID vazio instala direto pelo Chocolatey (Choco), sem tentar o winget.
 	ID   string
 	Nome string
 	// Source força a fonte do winget ("msstore" para apps da Microsoft Store).
@@ -69,8 +70,19 @@ var Jogos = []App{
 var UtilitariosRede = []App{
 	{ID: "Mikrotik.Winbox", Nome: "WinBox"},
 	{ID: "qBittorrent.qBittorrent", Nome: "qBittorrent"},
-	// Sem pacote no winget: cai para o Chocolatey.
-	{ID: "FileZilla", Nome: "FileZilla Client", Choco: "filezilla"},
+	// Sem pacote no winget: vai direto pelo Chocolatey.
+	{Nome: "FileZilla Client", Choco: "filezilla"},
+}
+
+var Ferramentas = []App{
+	{ID: "GitHub.cli", Nome: "GitHub CLI"},
+	{ID: "Gitea.tea", Nome: "Gitea CLI (tea)"},
+	{ID: "sharkdp.bat", Nome: "bat"},
+	// Port do btop (sucessor do bashtop, do mesmo autor) para o Windows.
+	{ID: "aristocratos.btop4win", Nome: "btop4win"},
+	{ID: "Gyan.FFmpeg", Nome: "FFmpeg"},
+	// O winget só tem o Nmap 7.80 (2019); o Chocolatey acompanha as releases.
+	{Nome: "Nmap", Choco: "nmap"},
 }
 
 var RustTools = []App{
@@ -96,3 +108,7 @@ const DotfilesRepoURL = "https://github.com/vinicgobbi/Dotfiles.git"
 //   - Mission Center: substituído pelo Gerenciador de Tarefas.
 //   - Remmina: RDP já é nativo (mstsc).
 //   - ProtonPlus: gerencia o Proton, sem sentido no Windows.
+//   - Thunderbird: substituído pelo Outlook novo, que já vem com o Windows
+//     (o debloat o mantém).
+//   - Docker: não usado no Windows (exigiria o WSL2).
+//   - jq e sqlcmd (mssql-tools): não usados; do SQL Server basta o driver ODBC.

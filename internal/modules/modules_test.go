@@ -145,7 +145,7 @@ func TestDevDriveAntesDosCaches(t *testing.T) {
 	for i, m := range All() {
 		pos[m.ID] = i
 	}
-	for _, id := range []string{"dev_tools", "php_sqlsrv", "rust_tools", "performance"} {
+	for _, id := range []string{"dev_tools", "php_sqlsrv", "ferramentas", "rust_tools", "performance"} {
 		if pos["dev_drive"] > pos[id] {
 			t.Errorf("dev_drive precisa rodar antes de %s", id)
 		}
