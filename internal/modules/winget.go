@@ -2,11 +2,10 @@ package modules
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 
 	"github.com/vinicgobbi/post-windows/internal/config"
-	"github.com/vinicgobbi/post-windows/internal/runner"
+	"github.com/vinicgobbi/post-windows/internal/winpath"
 )
 
 // Códigos de saída do winget (doc/windows/package-manager/winget/returnCodes.md).
@@ -34,14 +33,14 @@ func (c *Ctx) instalados() *wingetCache {
 	// tabela do "winget list" trunca IDs longos com "…").
 	arq := c.Temp("winget-export.json")
 	c.Output("winget", "export", "-o", arq, "--accept-source-agreements")
-	if data, err := os.ReadFile(arq); err == nil {
+	// O arquivo fica no WorkDir, apagado no final da execução.
+	if data, err := c.ReadFile(arq); err == nil {
 		if ids, err := parseWingetExport(data); err == nil {
 			for _, id := range ids {
 				c.winget.ids[strings.ToLower(id)] = true
 			}
 			c.winget.ok = true
 		}
-		os.Remove(arq)
 	}
 	return c.winget
 }
@@ -148,8 +147,8 @@ func (c *Ctx) installApps(apps []config.App) error {
 // (0x80070002) ao chamar "winget" pelo nome.
 func wingetExe(c *Ctx) string {
 	if p, err := c.PSOutput(`(Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Select-Object -First 1).InstallLocation`); err == nil && p != "" {
-		exe := p + `\winget.exe`
-		if _, err := os.Stat(exe); err == nil {
+		exe := winpath.Join(p, "winget.exe")
+		if c.FileExists(exe) {
 			return exe
 		}
 	}
@@ -159,7 +158,7 @@ func wingetExe(c *Ctx) string {
 // ensureChocolatey instala o Chocolatey só na primeira vez que algum app
 // precisar dele.
 func (c *Ctx) ensureChocolatey() error {
-	if c.choco || runner.Exists("choco") {
+	if c.choco || c.Exists("choco") {
 		c.choco = true
 		return nil
 	}

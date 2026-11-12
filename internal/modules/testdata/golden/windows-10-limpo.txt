@@ -1,0 +1,370 @@
+# Cenário windows-10-limpo: Windows 10 Home 22H2 (build 19045.6456, amd64), dry-run
+
+== bootstrap (Preparar ambiente)
+[INFO] Preparando o ambiente (winget, NuGet, PSGallery)...
+[INFO] [dry-run] winget source update
+[INFO] [dry-run] powershell: if (-not (Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction SilentlyContinue)) {; Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null; }; if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {; Set-PSRepository -Name PSGallery -InstallationPolicy Trusted; }
+[OK] Ambiente preparado.
+
+== atualizacao (Atualizar o Windows)
+[INFO] Buscando atualizações do Windows (pode demorar)...
+[INFO] [dry-run] Install-Module PSWindowsUpdate (sem o módulo, não dá para listar as atualizações)
+
+== dev_drive (Criar Dev Drive)
+[AVISO] Dev Drive precisa do Windows 11 22H2 (build 22621.2338) ou mais novo; pulando.
+
+== ferramentas (Ferramentas de terminal)
+[INFO] Instalando GitHub CLI...
+[INFO] [dry-run] winget install --id GitHub.cli -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] GitHub CLI instalado.
+[INFO] Instalando Gitea CLI (tea)...
+[INFO] [dry-run] winget install --id Gitea.tea -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Gitea CLI (tea) instalado.
+[INFO] Instalando bat...
+[INFO] [dry-run] winget install --id sharkdp.bat -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] bat instalado.
+[INFO] Instalando btop4win...
+[INFO] [dry-run] winget install --id aristocratos.btop4win -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] btop4win instalado.
+[INFO] Instalando FFmpeg...
+[INFO] [dry-run] winget install --id Gyan.FFmpeg -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] FFmpeg instalado.
+[INFO] Instalando o Chocolatey (fallback para apps fora do winget)...
+[INFO] [dry-run] powershell: [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+[OK] Chocolatey instalado.
+[INFO] Instalando Nmap via Chocolatey...
+[INFO] [dry-run] choco install nmap -y --no-progress
+[OK] Nmap instalado (Chocolatey).
+[INFO] Instalando Python 3.14...
+[INFO] [dry-run] winget install --id Python.Python.3.14 -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Python 3.14 instalado.
+[INFO] Instalando o pipx...
+[INFO] [dry-run] py -m pip install --user --upgrade pipx
+[INFO] [dry-run] py -m pipx ensurepath
+[OK] Ferramentas de terminal instaladas.
+
+== shell (PowerShell 7 e dotfiles)
+[INFO] Instalando PowerShell 7...
+[INFO] [dry-run] winget install --id Microsoft.PowerShell -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] PowerShell 7 instalado.
+[INFO] Instalando Oh My Posh...
+[INFO] [dry-run] winget install --id JanDeDobbeleer.OhMyPosh -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Oh My Posh instalado.
+[INFO] Instalando Git...
+[INFO] [dry-run] winget install --id Git.Git -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Git instalado.
+[INFO] [dry-run] git clone --quiet https://github.com/vinicgobbi/Dotfiles.git C:\Users\ana\AppData\Local\Temp\post-windows-teste\dotfiles
+[INFO] [dry-run] git -C C:\Users\ana\AppData\Local\Temp\post-windows-teste\dotfiles -c advice.detachedHead=false checkout --quiet <dotfilesCommit>
+[INFO] [dry-run] copiar C:\Users\ana\AppData\Local\Temp\post-windows-teste\dotfiles\oh-my-posh -> C:\Users\ana\.config\oh-my-posh
+[INFO] [dry-run] apagar C:\Users\ana\AppData\Local\Temp\post-windows-teste\dotfiles
+[INFO] [dry-run] acrescentar a C:\Users\ana\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1: . "C:\Users\ana\.config\oh-my-posh\profile.ps1"
+[INFO] [dry-run] acrescentar a C:\Users\ana\Documents\PowerShell\Microsoft.PowerShell_profile.ps1: . "C:\Users\ana\.config\oh-my-posh\profile.ps1"
+[INFO] Configure a fonte 'CaskaydiaCove Nerd Font' no terminal (Windows Terminal: Configurações > Perfil > Aparência > Fonte) para os ícones do tema aparecerem.
+[OK] PowerShell 7 instalado e perfis (5.1 e 7) configurados com Oh My Posh.
+
+== chrome (Google Chrome)
+[INFO] Instalando Google Chrome...
+[INFO] [dry-run] winget install --id Google.Chrome -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Google Chrome instalado.
+[OK] Google Chrome: concluído.
+
+== firefox (Firefox)
+[INFO] Instalando Mozilla Firefox...
+[INFO] [dry-run] winget install --id Mozilla.Firefox -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Mozilla Firefox instalado.
+[OK] Firefox: concluído.
+
+== bitwarden (Bitwarden)
+[INFO] Instalando Bitwarden...
+[INFO] [dry-run] winget install --id Bitwarden.Bitwarden -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Bitwarden instalado.
+[OK] Bitwarden: concluído.
+
+== apps (Aplicativos)
+[INFO] Instalando Postman...
+[INFO] [dry-run] winget install --id Postman.Postman -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Postman instalado.
+[INFO] Instalando DBeaver CE...
+[INFO] [dry-run] winget install --id DBeaver.DBeaver.Community -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] DBeaver CE instalado.
+[INFO] Instalando DevToys...
+[INFO] [dry-run] winget install --id 9PGCV4V3BK4W -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity --source msstore
+[OK] DevToys instalado.
+[INFO] Instalando Obsidian...
+[INFO] [dry-run] winget install --id Obsidian.Obsidian -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Obsidian instalado.
+[INFO] Instalando Ente Auth...
+[INFO] [dry-run] winget install --id ente-io.auth-desktop -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Ente Auth instalado.
+[INFO] Instalando Gaphor...
+[INFO] [dry-run] winget install --id gaphor.gaphor -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Gaphor instalado.
+[INFO] Instalando LibreOffice...
+[INFO] [dry-run] winget install --id TheDocumentFoundation.LibreOffice -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] LibreOffice instalado.
+[INFO] Instalando OnlyOffice Desktop Editors...
+[INFO] [dry-run] winget install --id ONLYOFFICE.DesktopEditors -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] OnlyOffice Desktop Editors instalado.
+[INFO] Instalando Telegram...
+[INFO] [dry-run] winget install --id Telegram.TelegramDesktop -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Telegram instalado.
+[INFO] Instalando Vesktop (Discord + Vencord já embutido)...
+[INFO] [dry-run] winget install --id Vencord.Vesktop -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Vesktop (Discord + Vencord já embutido) instalado.
+[INFO] Instalando Spotify...
+[INFO] [dry-run] (sem elevação) C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_1.27\winget.exe install --id Spotify.Spotify -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Spotify instalado.
+[INFO] Instalando WhatsApp...
+[INFO] [dry-run] (sem elevação) C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_1.27\winget.exe install --id WhatsApp.WhatsApp -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] WhatsApp instalado.
+[INFO] Instalando VLC...
+[INFO] [dry-run] winget install --id VideoLAN.VLC -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] VLC instalado.
+[INFO] Instalando OBS Studio...
+[INFO] [dry-run] winget install --id OBSProject.OBSStudio -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] OBS Studio instalado.
+[INFO] Instalando qBittorrent...
+[INFO] [dry-run] winget install --id qBittorrent.qBittorrent -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] qBittorrent instalado.
+[INFO] Instalando FileZilla Client via Chocolatey...
+[INFO] [dry-run] choco install filezilla -y --no-progress
+[OK] FileZilla Client instalado (Chocolatey).
+[INFO] Instalando WinBox...
+[INFO] [dry-run] winget install --id Mikrotik.Winbox -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] WinBox instalado.
+[OK] Aplicativos: concluído.
+
+== jogos (Jogos)
+[INFO] Instalando Steam...
+[INFO] [dry-run] winget install --id Valve.Steam -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Steam instalado.
+[INFO] Instalando Heroic Games Launcher...
+[INFO] [dry-run] winget install --id HeroicGamesLauncher.HeroicGamesLauncher -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Heroic Games Launcher instalado.
+[INFO] Instalando Prism Launcher...
+[INFO] [dry-run] winget install --id PrismLauncher.PrismLauncher -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Prism Launcher instalado.
+[OK] Jogos: concluído.
+
+== logitech (Logi Options+ (Logitech))
+[INFO] Instalando Logi Options+...
+[INFO] [dry-run] winget install --id Logitech.OptionsPlus -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Logi Options+ instalado.
+[OK] Logi Options+ (Logitech): concluído.
+
+== git_gcm (Git e Git Credential Manager)
+[OK] Git já está instalado.
+[INFO] Instalando Git Credential Manager...
+[INFO] [dry-run] winget install --id Git.GCM -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Git Credential Manager instalado.
+[INFO] [dry-run] registro HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1
+[INFO] [dry-run] git config --global core.fsmonitor true
+[INFO] [dry-run] git config --global core.untrackedCache true
+[INFO] [dry-run] git config --global core.longpaths true
+[OK] Git e GCM instalados; Git com FSMonitor, cache de não rastreados e caminhos longos.
+
+== vscode (Visual Studio Code)
+[INFO] Instalando Visual Studio Code...
+[INFO] [dry-run] winget install --id Microsoft.VisualStudioCode -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity --override /VERYSILENT /MERGETASKS=addcontextmenufiles,addcontextmenufolders
+[OK] Visual Studio Code instalado.
+[OK] Visual Studio Code: concluído.
+
+== go (Go)
+[INFO] Instalando Go...
+[INFO] [dry-run] winget install --id GoLang.Go -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Go instalado.
+[OK] Go: concluído.
+
+== mise (mise)
+[INFO] Instalando mise...
+[INFO] [dry-run] winget install --id jdx.mise -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] mise instalado.
+[INFO] [dry-run] acrescentar C:\Users\ana\AppData\Local\mise\shims ao Path do usuário
+[OK] mise instalado, com os shims em C:\Users\ana\AppData\Local\mise\shims no PATH.
+
+== node (Node.js e pnpm (mise))
+[INFO] Instalando o Node.js LTS e o pnpm pelo mise...
+[INFO] [dry-run] mise use -g node@lts pnpm@latest
+[INFO] [dry-run] mise reshim
+[OK] Node.js LTS e pnpm instalados pelo mise.
+
+== php_sqlserver (PHP e SQL Server)
+[INFO] Instalando PHP 8.5 (thread-safe)...
+[INFO] [dry-run] winget install --id PHP.PHP.8.5 -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] PHP 8.5 (thread-safe) instalado.
+[INFO] [dry-run] criar C:\ProgramData\PHP\8.5\php.ini a partir do php.ini-production do PHP
+[INFO] [dry-run] registro HKLM\SOFTWARE\PHP\8.5\IniFilePath = "C:\\ProgramData\\PHP\\8.5"
+[INFO] Instalando o Composer...
+[INFO] [dry-run] baixar https://getcomposer.org/installer -> C:\Users\ana\AppData\Local\Temp\post-windows-teste\composer-setup.php
+[INFO] [dry-run] C:\Users\ana\AppData\Local\Microsoft\WinGet\Links\php.exe C:\Users\ana\AppData\Local\Temp\post-windows-teste\composer-setup.php --install-dir=C:\ProgramData\Composer
+[INFO] Instalando Microsoft ODBC Driver 18 for SQL Server...
+[INFO] [dry-run] winget install --id Microsoft.msodbcsql.18 -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Microsoft ODBC Driver 18 for SQL Server instalado.
+[INFO] Baixando o driver PHP para SQL Server (msphpsql) mais recente...
+[INFO] [dry-run] baixar https://github.com/microsoft/msphpsql/releases/download/v5.13.0/Windows_5.13.0.zip -> C:\Users\ana\AppData\Local\Temp\post-windows-teste\msphpsql.zip
+[INFO] [dry-run] copiar php_sqlsrv/php_pdo_sqlsrv 8.5 para C:\ProgramData\PHP\8.5\ext e habilitar no php.ini
+[OK] PHP + sqlsrv/pdo_sqlsrv configurados (php.ini em C:\ProgramData\PHP\8.5).
+
+== rust (Rust, eza e topgrade)
+[INFO] Instalando o Rust stable pelo mise...
+[INFO] [dry-run] mise use -g rust@stable
+[INFO] [dry-run] mise reshim
+[INFO] Instalando eza...
+[INFO] [dry-run] winget install --id eza-community.eza -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] eza instalado.
+[INFO] Instalando topgrade...
+[INFO] [dry-run] winget install --id topgrade-rs.topgrade -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] topgrade instalado.
+[INFO] Para compilar projetos Rust, instale o Visual Studio Build Tools com "Desenvolvimento para desktop com C++" (o linker do toolchain MSVC).
+[OK] Rust, eza e topgrade instalados.
+
+== ruby (Ruby, Bundler e Jekyll)
+[INFO] Instalando Ruby 3.4 (com DevKit)...
+[INFO] [dry-run] winget install --id RubyInstallerTeam.RubyWithDevKit.3.4 -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity --override /VERYSILENT /NORESTART /ALLUSERS /MERGETASKS=!ridkinstall
+[OK] Ruby 3.4 (com DevKit) instalado.
+[INFO] Instalando a toolchain MSYS2/MinGW do Ruby (ridk install 3)...
+[INFO] [dry-run] ridk install 3
+[INFO] Instalando Bundler e Jekyll...
+[INFO] [dry-run] gem install --no-document bundler jekyll
+[INFO] [dry-run] bundle config set --global path vendor/bundle
+[OK] Ruby, Bundler e Jekyll instalados.
+
+== claude_code (Claude Code)
+[INFO] Instalando Claude Code...
+[INFO] [dry-run] winget install --id Anthropic.ClaudeCode -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Claude Code instalado.
+[OK] Claude Code: concluído.
+
+== deploy_dev (deploy-dev)
+[INFO] Instalando o deploy-dev (última release do deploy-tools)...
+[INFO] [dry-run] baixar https://github.com/vinicgobbi/deploy-tools/releases/download/v1.0.0/deploy-dev-windows-amd64.exe -> C:\Users\ana\AppData\Local\Temp\post-windows-teste\deploy-dev-windows-amd64.exe
+[INFO] [dry-run] C:\Users\ana\AppData\Local\Temp\post-windows-teste\deploy-dev-windows-amd64.exe install --add-to-path
+[OK] deploy-dev v1.0.0 instalado.
+
+== tailscale (Tailscale)
+[INFO] Instalando Tailscale...
+[INFO] [dry-run] winget install --id Tailscale.Tailscale -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] Tailscale instalado.
+[INFO] Abra o Tailscale pelo ícone da bandeja e faça login para conectar este PC à sua tailnet (o login é interativo).
+
+== ovpn (Importar perfis OpenVPN)
+[INFO] Instalando OpenVPN GUI...
+[INFO] [dry-run] winget install --id OpenVPNTechnologies.OpenVPN -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] OpenVPN GUI instalado.
+[AVISO] Nenhum arquivo .ovpn encontrado em C:\post-windows\OVPN — pulando importação.
+
+== virtualbox (VirtualBox)
+[INFO] Instalando VirtualBox...
+[INFO] [dry-run] winget install --id Oracle.VirtualBox -e --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+[OK] VirtualBox instalado.
+
+== papel_parede (Papel de parede)
+[INFO] Aplicando o papel de parede 'paisagem.jpg'...
+[INFO] [dry-run] copiar C:\post-windows\Wallpapers\paisagem.jpg -> C:\Users\ana\AppData\Local\post-windows\Wallpapers\paisagem.jpg
+[INFO] [dry-run] registro HKCU\Control Panel\Desktop\WallpaperStyle = "10"
+[INFO] [dry-run] registro HKCU\Control Panel\Desktop\TileWallpaper = "0"
+[INFO] [dry-run] aplicar o papel de parede C:\Users\ana\AppData\Local\post-windows\Wallpapers\paisagem.jpg
+[OK] Papel de parede aplicado: C:\Users\ana\AppData\Local\post-windows\Wallpapers\paisagem.jpg
+
+== customizacao_windows (Customização visual do Windows)
+[INFO] Aplicando tema escuro e ajustes do Explorer...
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\EnableTransparency = 1
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\HideFileExt = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\LaunchTo = 1
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Start_IrisRecommendations = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Start_TrackDocs = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarAl = 1
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ShowFrequent = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ShowRecent = 0
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Search\SearchboxTaskbarMode = 0
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer\HideRecommendedSection = 1
+[INFO] [dry-run] taskkill /F /IM explorer.exe
+[INFO] [dry-run] taskkill /F /IM SearchHost.exe
+[INFO] [dry-run] taskkill /F /IM StartMenuExperienceHost.exe
+[OK] Tema escuro (transparência mantida), extensões de arquivo visíveis, menu centralizado, pesquisa oculta, recomendações do menu Iniciar desativadas e Explorer em "Este Computador".
+
+== performance (Otimizações de desempenho)
+[INFO] Aplicando otimizações de desempenho (sem mexer em efeitos visuais)...
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization\DODownloadMode = 1
+[INFO] [dry-run] registro HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy\01 = 1
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Edge\BackgroundModeEnabled = 0
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Edge\StartupBoostEnabled = 0
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Google\Chrome\BackgroundModeEnabled = 0
+[INFO] [dry-run] apagar registro HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy\LetAppsRunInBackground
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications\GlobalUserDisabled = 1
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Spotify = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Steam = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Discord = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Vesktop = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\GalaxyClient = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\EpicGamesLauncher = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Telegram Desktop = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\MicrosoftEdgeAutoLaunch_0123ABCD = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] registro HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder\Telegram.lnk = 03 00 00 00 00 e8 87 32 84 72 dd 01
+[INFO] [dry-run] sc.exe stop dmwappushsvc
+[INFO] [dry-run] sc.exe config dmwappushsvc start= disabled
+[INFO] [dry-run] fsutil behavior set disablelastaccess 1
+[INFO] [dry-run] fsutil behavior set disabledeletenotify 0
+[INFO] [dry-run] criar pasta C:\Users\ana\Projects
+[INFO] [dry-run] powershell: (New-Object -ComObject Shell.Application).Namespace('C:\Users\ana\Projects').Self.InvokeVerb('PinToHome')
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\Projects\* = "file:///C:\\Users\\ana\\Projects\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\Projects
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\.cargo\* = "file:///C:\\Users\\ana\\.cargo\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\.cargo
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\.rustup\* = "file:///C:\\Users\\ana\\.rustup\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\.rustup
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\.vscode\* = "file:///C:\\Users\\ana\\.vscode\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\.vscode
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\.bun\* = "file:///C:\\Users\\ana\\.bun\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\.bun
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\.cache\* = "file:///C:\\Users\\ana\\.cache\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\.cache
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\.nuget\* = "file:///C:\\Users\\ana\\.nuget\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\.nuget
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Roaming\npm\* = "file:///C:\\Users\\ana\\AppData\\Roaming\\npm\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Roaming\npm
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Roaming\Composer\* = "file:///C:\\Users\\ana\\AppData\\Roaming\\Composer\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Roaming\Composer
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Roaming\fnm\* = "file:///C:\\Users\\ana\\AppData\\Roaming\\fnm\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Roaming\fnm
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Roaming\Code\* = "file:///C:\\Users\\ana\\AppData\\Roaming\\Code\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Roaming\Code
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\mise\* = "file:///C:\\Users\\ana\\AppData\\Local\\mise\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\mise
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\npm-cache\* = "file:///C:\\Users\\ana\\AppData\\Local\\npm-cache\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\npm-cache
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\pnpm\* = "file:///C:\\Users\\ana\\AppData\\Local\\pnpm\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\pnpm
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\pnpm-cache\* = "file:///C:\\Users\\ana\\AppData\\Local\\pnpm-cache\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\pnpm-cache
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\Composer\* = "file:///C:\\Users\\ana\\AppData\\Local\\Composer\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\Composer
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\pip\* = "file:///C:\\Users\\ana\\AppData\\Local\\pip\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\pip
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\Yarn\* = "file:///C:\\Users\\ana\\AppData\\Local\\Yarn\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\Yarn
+[INFO] [dry-run] registro HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\PreventIndexingCertainPaths\file:///C:\Users\ana\AppData\Local\Microsoft\WinGet\Packages\* = "file:///C:\\Users\\ana\\AppData\\Local\\Microsoft\\WinGet\\Packages\\*"
+[INFO] [dry-run] attrib +I C:\Users\ana\AppData\Local\Microsoft\WinGet\Packages
+[INFO] [dry-run] powershell: if (Get-Service WSearch -ErrorAction SilentlyContinue | Where-Object Status -eq 'Running') { Restart-Service WSearch -Force }
+[INFO] [dry-run] powershell: Add-MpPreference -ExclusionPath 'C:\Users\ana\Projects'
+[INFO] [dry-run] powershell: Set-MpPreference -ScanAvgCPULoadFactor 30
+[INFO] [dry-run] powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 100
+[INFO] [dry-run] powercfg /setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5
+[INFO] [dry-run] powercfg /setactive SCHEME_CURRENT
+[INFO] [dry-run] powercfg /overlaysetactive ded574b5-45a0-4f42-8737-46345c09c238
+[OK] Modo de energia "Melhor desempenho" ativado.
+[INFO] [dry-run] powercfg /hibernate off
+[OK] Hibernação desligada (desktop detectado) — libera o espaço do hiberfil.sys.
+[OK] Otimizações de desempenho aplicadas.
+
+== limpeza (Limpeza final)
+[INFO] Limpando arquivos temporários...
+[INFO] [dry-run] apagar o conteúdo de C:\Users\ana\AppData\Local\Temp (2 itens)
+[INFO] [dry-run] powershell: Delete-DeliveryOptimizationCache -Force
+[INFO] Limpando versões antigas dos componentes do Windows (pode levar alguns minutos)...
+[INFO] [dry-run] Dism.exe /Online /Cleanup-Image /StartComponentCleanup
+[OK] Limpeza concluída.
+
+== Consultas que o cenário não responde (falham na máquina falsa)

@@ -22,6 +22,19 @@ type Info struct {
 	Build          int
 	UBR            int // revisão do build (o ".1234" de 26100.1234)
 	Arch           string
+	// NaoTestada indica um build mais novo que todos os de versoes.go: pode
+	// funcionar, mas pede confirmação antes de seguir.
+	NaoTestada bool
+	// Testadas são as versões de versoes.go, para as mensagens.
+	Testadas []string
+	// Warnings são avisos sobre o sistema, mostrados no início.
+	Warnings []string
+}
+
+// versaoWindows é uma versão do Windows 11 com suporte (veja versoes.go).
+type versaoWindows struct {
+	Versao string // ex.: "25H2"
+	Build  int
 }
 
 // IsPro informa se a edição tem Hyper-V/gpedit (Pro, Enterprise, Education).
@@ -88,5 +101,47 @@ func fromRegistry(val map[string]string, arch string) (*Info, error) {
 	if build < MinBuild {
 		return nil, fmt.Errorf("versão do Windows não suportada (build %d): é preciso o Windows 10 2004+ (build %d) ou o Windows 11, onde o winget está disponível", build, MinBuild)
 	}
+	conferirSuporte(info, windowsSuportadas)
 	return info, nil
 }
+
+// conferirSuporte compara o build com as versões testadas (versoes.go). Um
+// build mais novo que todos pode funcionar, mas pede confirmação
+// (NaoTestada). Um build mais antigo que não esteja na lista (o Windows 10, ou
+// um Windows 11 que saiu do suporte) continua funcionando — o winget e os
+// módulos existem nele —, mas fica sem as correções de segurança da
+// Microsoft: só gera um aviso.
+func conferirSuporte(info *Info, suportadas []versaoWindows) {
+	maior, achou := 0, false
+	for _, v := range suportadas {
+		info.Testadas = append(info.Testadas, fmt.Sprintf("%s (build %d)", v.Versao, v.Build))
+		achou = achou || v.Build == info.Build
+		maior = max(maior, v.Build)
+	}
+	if achou {
+		return
+	}
+	lista := "Windows 11 " + strings.Join(info.Testadas, ", ")
+	if info.Build > maior {
+		info.NaoTestada = true
+		info.Warnings = append(info.Warnings, fmt.Sprintf(
+			"%s é mais novo que as versões testadas (%s): pode funcionar, mas não foi testado.", info.nome(), lista))
+		return
+	}
+	info.Warnings = append(info.Warnings, fmt.Sprintf(
+		"%s está fora do suporte da Microsoft (sem atualizações de segurança nas edições Home/Pro). "+
+			"O post-windows segue, mas foi testado só com %s: atualize o Windows quando puder.", info.nome(), lista))
+}
+
+// nome é a edição com a versão e o build (ex.: "Windows 11 Pro 24H2 (build
+// 26100)").
+func (i *Info) nome() string {
+	ver := ""
+	if i.DisplayVersion != "" {
+		ver = " " + i.DisplayVersion
+	}
+	return fmt.Sprintf("%s%s (build %d)", i.Edition, ver, i.Build)
+}
+
+// Nome é a edição com a versão e o build, para as telas de aviso.
+func (i *Info) Nome() string { return i.nome() }

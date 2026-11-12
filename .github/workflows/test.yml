@@ -1,0 +1,74 @@
+# Em cada PR (e push na development), e chamado pelo release.yml antes de
+# cada release: as mesmas verificações nos dois casos, para um problema —
+# inclusive uma mudança nos testes golden do dry-run
+# (internal/modules/testdata/golden) — aparecer antes do merge, e não só no
+# push para a main.
+#
+#   windows — go vet, go test, staticcheck, govulncheck, sintaxe do
+#             setup.ps1 e um --dry-run do executável (consultas reais, nada
+#             alterado)
+#   linux   — go test -race (os golden dão o mesmo resultado no Linux, pelo
+#             pacote winpath) e shellcheck dos scripts
+#
+# Actions fixadas pelo SHA do commit (a tag fica no comentário): uma tag pode
+# ser movida para outro código; o SHA, não. O Dependabot propõe as
+# atualizações (.github/dependabot.yml).
+name: Testes
+
+on:
+  pull_request:
+  push:
+    branches: [development]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Chamado pelo release.yml, o github.workflow é o "Release": o grupo fica
+# separado e nada é cancelado (a release espera os testes).
+concurrency:
+  group: testes-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.workflow == 'Testes' }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: Sintaxe do setup.ps1
+        shell: powershell
+        run: |
+          $erros = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\setup.ps1", [ref]$null, [ref]$erros) | Out-Null
+          if ($erros) { $erros | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
+      - name: Smoke test (--version, --list, --dry-run)
+        shell: powershell
+        run: |
+          go build -o post-windows.exe ./cmd/post-windows
+          .\post-windows.exe --version
+          .\post-windows.exe --list
+          if (-not $?) { exit 1 }
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            .\post-windows.exe --dry-run --no-tui --yes --no-update-check --wallpaper none --skip atualizacao
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            Write-Host "winget não está disponível neste runner: pulando o --dry-run."
+          }
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+      - run: shellcheck scripts/*.sh

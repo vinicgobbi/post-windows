@@ -5,37 +5,42 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/vinicgobbi/post-windows/internal/config"
-	"github.com/vinicgobbi/post-windows/internal/runner"
+	"github.com/vinicgobbi/post-windows/internal/winpath"
 )
 
 // phpVersao é a versão instalada pelo winget (pacote PHP.PHP.<versão>) e o
 // sufixo das DLLs do driver SQL Server (php_sqlsrv_<85>_ts...).
 const phpVersao = "8.5"
 
-var phpSqlsrv = Module{
-	ID:    "php_sqlsrv",
-	Title: "Instalar PHP + extensões SQL Server",
-	Desc:  "PHP " + phpVersao + ", Composer, driver ODBC 18 e as extensões sqlsrv/pdo_sqlsrv (DLLs oficiais da Microsoft)",
+var phpSQLServer = Module{
+	ID:    "php_sqlserver",
+	Grupo: GrupoDesenvolvimento,
+	Title: "PHP e SQL Server",
+	Desc:  "PHP " + phpVersao + ", Composer (instalador conferido pelo SHA-384), driver ODBC 18 e as extensões sqlsrv/pdo_sqlsrv (DLLs oficiais da Microsoft, com SHA-256 conferido)",
 	Run: func(c *Ctx) error {
 		odbc := config.App{ID: "Microsoft.msodbcsql.18", Nome: "Microsoft ODBC Driver 18 for SQL Server"}
 		if err := c.installApp(config.App{ID: "PHP.PHP." + phpVersao, Nome: "PHP " + phpVersao + " (thread-safe)"}); err != nil {
 			return err
 		}
 
-		phpExe, err := exec.LookPath("php")
+		phpExe, err := c.LookPath("php")
+		if err != nil && c.DryRun {
+			// O PHP não foi instalado de verdade: segue com o caminho em
+			// que o winget o deixaria, para mostrar o resto.
+			phpExe, err = winpath.Join(c.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links", "php.exe"), nil
+		}
 		if err != nil {
 			c.Log.Warnf("php.exe não encontrado no PATH após a instalação; pulando Composer e as extensões sqlsrv.")
 			return c.installApp(odbc)
@@ -43,12 +48,12 @@ var phpSqlsrv = Module{
 		// O winget instala o PHP como pacote "portable" e cria um link em
 		// %LOCALAPPDATA%\Microsoft\WinGet\Links\php.exe; o alvo real do
 		// link é a pasta de instalação (onde ficam ext\ e o php.ini).
-		if real, err := filepath.EvalSymlinks(phpExe); err == nil {
+		if real, err := c.EvalSymlinks(phpExe); err == nil {
 			phpExe = real
 		}
-		phpDir := filepath.Dir(phpExe)
-		confDir := phpConfDir()
-		ini := filepath.Join(confDir, "php.ini")
+		phpDir := winpath.Dir(phpExe)
+		confDir := phpConfDir(c)
+		ini := winpath.Join(confDir, "php.ini")
 
 		if err := prepararPhpIni(c, phpDir, confDir); err != nil {
 			return err
@@ -59,7 +64,7 @@ var phpSqlsrv = Module{
 		if err := c.installApp(odbc); err != nil {
 			return err
 		}
-		if err := instalarSqlsrv(c, filepath.Join(confDir, "ext"), ini); err != nil {
+		if err := instalarSqlsrv(c, winpath.Join(confDir, "ext"), ini); err != nil {
 			return err
 		}
 		conferirPhpIni(c, phpExe, ini)
@@ -73,8 +78,8 @@ var phpSqlsrv = Module{
 // PHP a cada atualização, e o php.ini (e o que mais tiver sido posto ali)
 // some ou fica para trás. É por versão (8.5) porque as DLLs de extensão só
 // servem para a versão do PHP para a qual foram compiladas.
-func phpConfDir() string {
-	return filepath.Join(os.Getenv("ProgramData"), "PHP", phpVersao)
+func phpConfDir(c *Ctx) string {
+	return winpath.Join(c.Getenv("ProgramData"), "PHP", phpVersao)
 }
 
 // chavePHP é lida pelo próprio PHP para achar o php.ini, antes da pasta do
@@ -92,10 +97,10 @@ const chavePHP = `HKLM\SOFTWARE\PHP\` + phpVersao
 // openssl/curl/mbstring, que o Composer precisa para baixar via HTTPS — sem
 // elas o instalador falha em silêncio, sem gerar o composer.phar.
 func prepararPhpIni(c *Ctx, phpDir, confDir string) error {
-	ini := filepath.Join(confDir, "php.ini")
+	ini := winpath.Join(confDir, "php.ini")
 	var base []byte
-	for _, p := range []string{ini, filepath.Join(phpDir, "php.ini"), filepath.Join(phpDir, "php.ini-production")} {
-		if data, err := os.ReadFile(p); err == nil {
+	for _, p := range []string{ini, winpath.Join(phpDir, "php.ini"), winpath.Join(phpDir, "php.ini-production")} {
+		if data, err := c.ReadFile(p); err == nil {
 			if p != ini {
 				c.Log.Infof("Criando %s a partir de %s.", ini, p)
 			}
@@ -103,13 +108,19 @@ func prepararPhpIni(c *Ctx, phpDir, confDir string) error {
 			break
 		}
 	}
+	if base == nil && c.DryRun {
+		// O PHP não foi instalado de verdade: o php.ini-production viria
+		// com ele.
+		c.Log.Infof("[dry-run] criar %s a partir do php.ini-production do PHP", ini)
+		return c.SetString(chavePHP, "IniFilePath", confDir)
+	}
 	if base == nil {
 		c.Log.Warnf("Nem php.ini nem php.ini-production em %s; Composer e sqlsrv podem falhar.", phpDir)
 		return nil
 	}
 
 	novo := habilitarExtensoes(string(base), "openssl", "curl", "mbstring")
-	if atual, err := os.ReadFile(ini); err != nil || string(atual) != novo {
+	if atual, err := c.ReadFile(ini); err != nil || string(atual) != novo {
 		if err := c.WriteFile(ini, novo); err != nil {
 			return err
 		}
@@ -169,7 +180,7 @@ func conferirPhpIni(c *Ctx, phpExe, ini string) {
 		return
 	}
 	carregado, exts, _ := strings.Cut(strings.TrimSpace(out), "|")
-	if !strings.EqualFold(filepath.Clean(carregado), filepath.Clean(ini)) {
+	if !winpath.Igual(carregado, ini) {
 		c.Log.Warnf("O PHP carregou %q em vez de %s; confira o valor IniFilePath em %s.", carregado, ini, chavePHP)
 		return
 	}
@@ -181,12 +192,12 @@ func conferirPhpIni(c *Ctx, phpExe, ini string) {
 // publicado pelo projeto antes de rodar e gera o composer.phar. Como .phar
 // não é executável direto no Windows, cria um composer.bat ao lado.
 func instalarComposer(c *Ctx, phpExe string) error {
-	if runner.Exists("composer") {
+	if c.Exists("composer") {
 		c.Log.Successf("Composer já está instalado.")
 		return nil
 	}
 	c.Log.Infof("Instalando o Composer...")
-	dir := filepath.Join(os.Getenv("ProgramData"), "Composer")
+	dir := winpath.Join(c.Getenv("ProgramData"), "Composer")
 	setup := c.Temp("composer-setup.php")
 	if err := c.Download("https://getcomposer.org/installer", setup); err != nil {
 		return err
@@ -216,13 +227,13 @@ func instalarComposer(c *Ctx, phpExe string) error {
 	); err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(dir, "composer.phar")); err != nil {
+	if !c.FileExists(winpath.Join(dir, "composer.phar")) {
 		c.Log.Warnf("composer.phar não foi gerado; a instalação do Composer falhou.")
 		return nil
 	}
 	if err := step(
 		func() error {
-			return c.WriteFile(filepath.Join(dir, "composer.bat"), "@php \"%~dp0composer.phar\" %*\r\n")
+			return c.WriteFile(winpath.Join(dir, "composer.bat"), "@php \"%~dp0composer.phar\" %*\r\n")
 		},
 		func() error { return c.AddToMachinePath(dir) },
 	); err != nil {
@@ -237,39 +248,33 @@ var reDllSqlsrv = regexp.MustCompile(`(?i)^php_(pdo_)?sqlsrv_` + strings.Replace
 
 // instalarSqlsrv baixa a release mais recente do driver oficial
 // (microsoft/msphpsql — no Windows não dá para compilar via PECL como no
-// Linux), copia as DLLs thread-safe x64 da versão do PHP para extDir (na
-// pasta fixa, para sobreviverem às atualizações do pacote) e as habilita no
-// php.ini pelo caminho absoluto.
+// Linux), conferida pelo SHA-256 que o GitHub publica, copia as DLLs
+// thread-safe x64 da versão do PHP para extDir (na pasta fixa, para
+// sobreviverem às atualizações do pacote) e as habilita no php.ini pelo
+// caminho absoluto.
 func instalarSqlsrv(c *Ctx, extDir, ini string) error {
 	c.Log.Infof("Baixando o driver PHP para SQL Server (msphpsql) mais recente...")
-	body, err := c.Get("https://api.github.com/repos/microsoft/msphpsql/releases/latest", time.Minute)
+	rel, err := ultimaRelease(c, "microsoft/msphpsql")
 	if err != nil {
 		return err
 	}
-	var rel struct {
-		TagName string `json:"tag_name"`
-		Assets  []struct {
-			Name string `json:"name"`
-			URL  string `json:"browser_download_url"`
-		} `json:"assets"`
-	}
-	if err := json.Unmarshal(body, &rel); err != nil {
-		return err
-	}
-	var url string
+	var pacote assetGitHub
 	for _, a := range rel.Assets {
 		if strings.HasPrefix(a.Name, "Windows") && strings.HasSuffix(a.Name, ".zip") {
-			url = a.URL
+			pacote = a
 			break
 		}
 	}
-	if url == "" {
-		c.Log.Warnf("Não encontrei o pacote Windows na release %s do msphpsql; pulando as extensões sqlsrv.", rel.TagName)
+	if pacote.URL == "" {
+		c.Log.Warnf("Não encontrei o pacote Windows na release %s do msphpsql; pulando as extensões sqlsrv.", rel.Tag)
 		return nil
+	}
+	if pacote.sha256() == "" {
+		return errorf("o GitHub não publicou o SHA-256 de %s (release %s do msphpsql)", pacote.Name, rel.Tag)
 	}
 
 	zipPath := c.Temp("msphpsql.zip")
-	if err := c.Download(url, zipPath); err != nil {
+	if err := c.DownloadVerified(pacote.URL, zipPath, pacote.sha256()); err != nil {
 		return err
 	}
 	if c.DryRun {
@@ -281,16 +286,16 @@ func instalarSqlsrv(c *Ctx, extDir, ini string) error {
 		return err
 	}
 	if len(dlls) < 2 {
-		c.Log.Warnf("As DLLs sqlsrv/pdo_sqlsrv do PHP %s (TS x64) não estão na release %s (a versão pode ainda não ter suporte); pulando.", phpVersao, rel.TagName)
+		c.Log.Warnf("As DLLs sqlsrv/pdo_sqlsrv do PHP %s (TS x64) não estão na release %s (a versão pode ainda não ter suporte); pulando.", phpVersao, rel.Tag)
 		return nil
 	}
-	conteudo, err := os.ReadFile(ini)
-	if err != nil && !os.IsNotExist(err) {
+	conteudo, err := c.ReadFile(ini)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 	novo := string(conteudo)
 	for _, nome := range slices.Sorted(maps.Keys(dlls)) {
-		destino := filepath.Join(extDir, nome)
+		destino := winpath.Join(extDir, nome)
 		if err := c.WriteFile(destino, string(dlls[nome])); err != nil {
 			return err
 		}

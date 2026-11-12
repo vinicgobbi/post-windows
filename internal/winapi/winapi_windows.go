@@ -4,6 +4,7 @@ package winapi
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -173,9 +174,14 @@ func RefreshPath() {
 }
 
 // AddToMachinePath acrescenta dir ao Path de máquina, se ainda não estiver lá.
-func AddToMachinePath(dir string) error {
-	atual, err := GetString(envMaquina, "Path")
-	if err != nil {
+func AddToMachinePath(dir string) error { return addToPath(envMaquina, dir) }
+
+// AddToUserPath acrescenta dir ao Path do usuário, se ainda não estiver lá.
+func AddToUserPath(dir string) error { return addToPath(envUsuario, dir) }
+
+func addToPath(key, dir string) error {
+	atual, err := GetString(key, "Path")
+	if err != nil && !errors.Is(err, registry.ErrNotExist) {
 		return err
 	}
 	for _, p := range strings.Split(atual, ";") {
@@ -183,7 +189,37 @@ func AddToMachinePath(dir string) error {
 			return nil
 		}
 	}
-	return SetExpandString(envMaquina, "Path", strings.TrimRight(atual, ";")+";"+dir)
+	novo := dir
+	if atual = strings.TrimRight(atual, ";"); atual != "" {
+		novo = atual + ";" + dir
+	}
+	if err := SetExpandString(key, "Path", novo); err != nil {
+		return err
+	}
+	BroadcastSettingChange("Environment")
+	return nil
+}
+
+var procSystemParametersInfo = windows.NewLazySystemDLL("user32.dll").NewProc("SystemParametersInfoW")
+
+// SetWallpaper aplica a imagem como papel de parede do usuário atual, do
+// mesmo jeito que o app Configurações: grava em HKCU\Control Panel\Desktop e
+// avisa as janelas (SPIF_UPDATEINIFILE | SPIF_SENDCHANGE).
+func SetWallpaper(path string) error {
+	const (
+		spiSetDeskWallpaper = 0x0014
+		spifUpdateIniFile   = 0x01
+		spifSendChange      = 0x02
+	)
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	ok, _, err := procSystemParametersInfo.Call(spiSetDeskWallpaper, 0, uintptr(unsafe.Pointer(p)), spifUpdateIniFile|spifSendChange)
+	if ok == 0 {
+		return fmt.Errorf("SystemParametersInfo: %w", err)
+	}
+	return nil
 }
 
 var procSendMessageTimeout = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")

@@ -1,12 +1,16 @@
 # A cada push na main:
-#   1. test    — go vet + go test no Windows, sintaxe do setup.ps1 e um
-#                --dry-run do executável (consultas reais, nada alterado)
+# Actions fixadas pelo SHA do commit (a tag fica no comentário): uma tag pode
+# ser movida para outro código; o SHA, não. O Dependabot propõe as
+# atualizações (.github/dependabot.yml).
+#
+#   1. test    — as verificações do test.yml (Windows e Linux)
 #   2. bump    — commitizen calcula a próxima versão pelos Conventional Commits,
 #                atualiza o CHANGELOG.md, cria o commit "bump: ..." e a tag vX.Y.Z
 #                (se não houver commit feat/fix/BREAKING, não há release)
 #   3. build   — compila o .exe para windows/amd64, empacota um .zip com o
-#                executável + estrutura de pastas (OVPN\, logs\) e sobe tudo
-#                como artefato
+#                executável + estrutura de pastas (OVPN\, Wallpapers\, logs\),
+#                gera o atestado de proveniência (verificável com
+#                "gh attestation verify") e sobe tudo como artefato
 #   4. release — publica a release da tag (.exe solto + pacote .zip) e apaga
 #                os artefatos
 name: Release
@@ -26,34 +30,9 @@ permissions:
 jobs:
   test:
     # O commit "bump:" criado pelo próprio workflow não dispara nova release.
-    if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - run: go vet ./...
-      - run: go test ./...
-      - name: Sintaxe do setup.ps1
-        shell: powershell
-        run: |
-          $erros = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\setup.ps1", [ref]$null, [ref]$erros) | Out-Null
-          if ($erros) { $erros | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
-      - name: Smoke test (--version, --list, --dry-run)
-        shell: powershell
-        run: |
-          go build -o post-windows.exe ./cmd/post-windows
-          .\post-windows.exe --version
-          .\post-windows.exe --list
-          if (-not $?) { exit 1 }
-          if (Get-Command winget -ErrorAction SilentlyContinue) {
-            .\post-windows.exe --dry-run --no-tui --yes --skip windows_update
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          } else {
-            Write-Host "winget não está disponível neste runner: pulando o --dry-run."
-          }
+    # Disparado à mão, só vale na main (senão criaria tag/release de outra branch).
+    if: ${{ github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'bump:') }}
+    uses: ./.github/workflows/test.yml
 
   bump:
     needs: test
@@ -95,6 +74,10 @@ jobs:
     needs: bump
     if: needs.bump.outputs.bumped == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # assinatura Sigstore do atestado
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -117,18 +100,26 @@ jobs:
           # post-windows/
           #   post-windows.exe  executável
           #   OVPN/README.md    pasta onde ficam os .ovpn a importar
+          #   Wallpapers/       papéis de parede oferecidos na TUI
           #   logs/             logs de cada execução
           #   README.md
           pkg="pkg/post-windows"
-          mkdir -p "$pkg/OVPN" "$pkg/logs"
+          mkdir -p "$pkg/OVPN" "$pkg/Wallpapers" "$pkg/logs"
           cp dist/post-windows-windows-amd64.exe "$pkg/post-windows.exe"
           cp OVPN/README.md "$pkg/OVPN/README.md"
+          cp Wallpapers/* "$pkg/Wallpapers/"
           cp README.md "$pkg/README.md"
           touch "$pkg/logs/.keep"
           (cd pkg && zip -qr ../dist/post-windows-windows-amd64.zip post-windows)
           cd dist
           sha256sum post-windows-windows-amd64.exe > post-windows-windows-amd64.exe.sha256
           sha256sum post-windows-windows-amd64.zip > post-windows-windows-amd64.zip.sha256
+      - name: Atestado de proveniência
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/post-windows-windows-amd64.exe
+            dist/post-windows-windows-amd64.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: post-windows-windows-amd64
