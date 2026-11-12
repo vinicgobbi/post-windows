@@ -19,6 +19,8 @@ func ValueNames(string) ([]string, error)          { return nil, ErrSoWindows }
 func DeleteValue(string, string) error             { return ErrSoWindows }
 func RefreshPath()                                 {}
 func AddToMachinePath(string) error                { return ErrSoWindows }
+func AddToUserPath(string) error                   { return ErrSoWindows }
+func SetWallpaper(string) error                    { return ErrSoWindows }
 func BroadcastSettingChange(string)                {}
 
 func PrepareCmd(cmd *exec.Cmd) {
