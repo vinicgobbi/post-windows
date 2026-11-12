@@ -1,8 +1,8 @@
 ﻿#Requires -Version 5.1
 <#
     Bootstrap do post-windows: baixa o executável da release no GitHub
-    (verificando o SHA-256) e executa como Administrador, apontando OVPN\ e
-    logs\ para esta pasta.
+    (verificando o SHA-256) e executa como Administrador, apontando OVPN\,
+    Wallpapers\ e logs\ para esta pasta.
 
       powershell -ExecutionPolicy Bypass -File .\setup.ps1              # última release
       $env:POST_WINDOWS_VERSION = 'v1.2.0'; .\setup.ps1                 # versão específica
@@ -72,7 +72,10 @@ if (-not (Test-Path $bin)) {
     }
 }
 
-& $bin --ovpn-dir (Join-Path $ScriptDir 'OVPN') --log-dir (Join-Path $ScriptDir 'logs') @args
+# --no-update-check: este script já baixa a última release (ou a fixada em
+# POST_WINDOWS_VERSION), então o executável não precisa se atualizar.
+& $bin --ovpn-dir (Join-Path $ScriptDir 'OVPN') --wallpapers-dir (Join-Path $ScriptDir 'Wallpapers') `
+    --log-dir (Join-Path $ScriptDir 'logs') --no-update-check @args
 $codigo = $LASTEXITCODE
 if ($tmp) { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 exit $codigo
