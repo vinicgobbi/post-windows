@@ -38,6 +38,9 @@ func TestInitialSelection(t *testing.T) {
 	if got := marcados(sel); slices.Contains(got, "performance") || slices.Contains(got, "rust") || len(got) != len(all)-2 {
 		t.Errorf("skip: %v", got)
 	}
+	if len(avisos) != 1 || !strings.Contains(avisos[0], "rust_tools") {
+		t.Errorf("avisos do skip = %v", avisos)
+	}
 
 	// Módulo removido: ignorado, com aviso (e sem erro).
 	sel, avisos, err = initialSelection(all, "", "debloat")
