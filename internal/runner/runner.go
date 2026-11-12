@@ -12,10 +12,13 @@ package runner
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net/http"
 	"os"
@@ -29,6 +32,7 @@ import (
 
 	"github.com/vinicgobbi/post-windows/internal/runlog"
 	"github.com/vinicgobbi/post-windows/internal/winapi"
+	"github.com/vinicgobbi/post-windows/internal/winpath"
 )
 
 type Runner struct {
@@ -38,6 +42,9 @@ type Runner struct {
 	// WorkDir é um diretório temporário exclusivo desta execução, removido
 	// no final.
 	WorkDir string
+	// Host substitui a máquina real nas consultas (nil = máquina real).
+	// Veja host.go.
+	Host Host
 }
 
 func (r *Runner) command(name string, args ...string) *exec.Cmd {
@@ -133,6 +140,10 @@ func (r *Runner) Probe(name string, args ...string) bool {
 }
 
 func (r *Runner) quiet(name string, args ...string) error {
+	if r.Host != nil {
+		_, err := r.consultarHost(describe(name, args), name, args)
+		return err
+	}
 	cmd := r.command(name, args...)
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
@@ -148,6 +159,10 @@ func (r *Runner) Output(name string, args ...string) (string, error) {
 }
 
 func (r *Runner) output(desc, name string, args ...string) (string, error) {
+	if r.Host != nil {
+		out, err := r.consultarHost(desc, name, args)
+		return string(out), err
+	}
 	cmd := r.command(name, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -172,8 +187,13 @@ func Exists(name string) bool {
 	return err == nil
 }
 
-// RefreshPath relê o PATH do registro (ver winapi.RefreshPath).
-func (r *Runner) RefreshPath() { winapi.RefreshPath() }
+// RefreshPath relê o PATH do registro (ver winapi.RefreshPath). No dry-run
+// nada foi instalado, então não há o que reler.
+func (r *Runner) RefreshPath() {
+	if !r.DryRun {
+		winapi.RefreshPath()
+	}
+}
 
 // ---- PowerShell ----
 
@@ -206,7 +226,16 @@ func (r *Runner) PowerShell(script string) error {
 // PSOutput executa um script somente-leitura e devolve o stdout (sem espaços
 // nas pontas). Roda mesmo em DryRun.
 func (r *Runner) PSOutput(script string) (string, error) {
-	out, err := r.output("powershell: "+umaLinha(script), "powershell.exe", psArgs(script)...)
+	desc := "powershell: " + umaLinha(script)
+	var out string
+	var err error
+	if r.Host != nil {
+		var b []byte
+		b, err = r.consultarHost(desc, "powershell", []string{script})
+		out = string(b)
+	} else {
+		out, err = r.output(desc, "powershell.exe", psArgs(script)...)
+	}
 	return strings.TrimSpace(out), err
 }
 
@@ -354,6 +383,31 @@ func (r *Runner) AddToMachinePath(dir string) error {
 	return winapi.AddToMachinePath(dir)
 }
 
+// AddToUserPath acrescenta dir ao Path do usuário (e ao PATH deste
+// processo, para os módulos seguintes).
+func (r *Runner) AddToUserPath(dir string) error {
+	if r.DryRun {
+		r.Log.Infof("[dry-run] acrescentar %s ao Path do usuário", dir)
+		return nil
+	}
+	r.Log.RawWrite(fmt.Sprintf("Path do usuário += %s\n", dir))
+	if err := winapi.AddToUserPath(dir); err != nil {
+		return err
+	}
+	winapi.RefreshPath()
+	return nil
+}
+
+// SetWallpaper aplica a imagem como papel de parede do usuário atual.
+func (r *Runner) SetWallpaper(path string) error {
+	if r.DryRun {
+		r.Log.Infof("[dry-run] aplicar o papel de parede %s", path)
+		return nil
+	}
+	r.Log.RawWrite(fmt.Sprintf("papel de parede = %s\n", path))
+	return winapi.SetWallpaper(path)
+}
+
 // ---- Arquivos ----
 
 func (r *Runner) WriteFile(path, content string) error {
@@ -370,8 +424,8 @@ func (r *Runner) WriteFile(path, content string) error {
 // AppendLine acrescenta uma linha ao arquivo só se ela ainda não estiver lá
 // (idempotente em reexecuções). Cria o arquivo e a pasta se não existirem.
 func (r *Runner) AppendLine(path, line string) error {
-	atual, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	atual, err := r.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 	if strings.Contains(string(atual), line) {
@@ -394,6 +448,31 @@ func (r *Runner) AppendLine(path, line string) error {
 	}
 	_, err = f.WriteString(line + "\r\n")
 	return err
+}
+
+// RemoveLine apaga do arquivo as linhas iguais a line (sem contar espaços
+// nas pontas), se houver alguma. Arquivo inexistente não é erro.
+func (r *Runner) RemoveLine(path, line string) error {
+	atual, err := r.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	linhas := strings.SplitAfter(string(atual), "\n")
+	novas := slices.DeleteFunc(slices.Clone(linhas), func(l string) bool {
+		return strings.TrimSpace(l) == strings.TrimSpace(line)
+	})
+	if len(novas) == len(linhas) {
+		return nil
+	}
+	if r.DryRun {
+		r.Log.Infof("[dry-run] tirar de %s: %s", path, line)
+		return nil
+	}
+	r.Log.RawWrite(fmt.Sprintf("tirar de %s: %s\n", path, line))
+	return os.WriteFile(path, []byte(strings.Join(novas, "")), 0o644)
 }
 
 // CopyFile copia src para dst (sobrescrevendo).
@@ -430,10 +509,30 @@ func (r *Runner) RemoveAll(path string) error {
 
 // ---- Rede ----
 
-var httpClient = &http.Client{Timeout: 10 * time.Minute}
+// semDowngrade recusa redirecionamentos de https:// para http://, que
+// tirariam a proteção do TLS no meio do caminho.
+func semDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("redirecionamentos demais")
+	}
+	if via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return fmt.Errorf("redirecionamento inseguro de %s para %s", via[0].URL, req.URL)
+	}
+	return nil
+}
+
+var (
+	httpClient = &http.Client{Timeout: 10 * time.Minute, CheckRedirect: semDowngrade}
+	// getClient não tem timeout próprio: cada Get define o seu pelo contexto.
+	getClient = &http.Client{CheckRedirect: semDowngrade}
+)
+
+// maxGet limita o corpo lido por Get (APIs, listas, assinaturas): nada
+// legítimo aqui chega perto disso.
+const maxGet = 32 << 20
 
 // Get faz uma requisição GET somente-leitura com timeout e devolve o corpo.
-// Falha em status HTTP de erro.
+// Falha em status HTTP de erro. Roda mesmo em DryRun.
 func (r *Runner) Get(url string, timeout time.Duration) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(r.Ctx, timeout)
 	defer cancel()
@@ -442,7 +541,11 @@ func (r *Runner) Get(url string, timeout time.Duration) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "post-windows")
-	resp, err := http.DefaultClient.Do(req)
+	client := getClient
+	if r.Host != nil {
+		client = &http.Client{Transport: r.Host.Transport(), CheckRedirect: semDowngrade}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +553,11 @@ func (r *Runner) Get(url string, timeout time.Duration) ([]byte, error) {
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxGet+1))
+	if err == nil && len(body) > maxGet {
+		return nil, fmt.Errorf("GET %s: resposta maior que %d MiB", url, maxGet>>20)
+	}
+	return body, err
 }
 
 // Download baixa uma URL para dest com algumas tentativas antes de desistir,
@@ -509,9 +616,39 @@ func (r *Runner) downloadOnce(url, dest string) error {
 	return os.Rename(tmp, dest)
 }
 
+// DownloadVerified é Download conferindo o SHA-256 (hex) do arquivo baixado.
+// Em DryRun só registra, como Download.
+func (r *Runner) DownloadVerified(url, dest, sha string) error {
+	if err := r.Download(url, dest); err != nil || r.DryRun {
+		return err
+	}
+	if err := VerifySHA256(dest, sha); err != nil {
+		os.Remove(dest)
+		return err
+	}
+	return nil
+}
+
+// VerifySHA256 compara o SHA-256 de um arquivo com o esperado (hex).
+func VerifySHA256(path, want string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, want) {
+		return fmt.Errorf("SHA-256 de %s (%s) não confere com o esperado (%s)", filepath.Base(path), got, want)
+	}
+	return nil
+}
+
 // Temp devolve um caminho dentro do WorkDir.
 func (r *Runner) Temp(name string) string {
-	return filepath.Join(r.WorkDir, name)
+	return winpath.Join(r.WorkDir, name)
 }
 
 func sortedKeys(m map[string]uint32) []string { return slices.Sorted(maps.Keys(m)) }
