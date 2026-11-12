@@ -25,6 +25,59 @@ func TestIDsUnicos(t *testing.T) {
 	}
 }
 
+func TestGruposContiguos(t *testing.T) {
+	ordem := []string{GrupoSistema, GrupoTerminal, GrupoAplicativos, GrupoDesenvolvimento, GrupoRede, GrupoWindows, GrupoFinalizacao}
+	pos := -1
+	for _, m := range All() {
+		g := slices.Index(ordem, m.Grupo)
+		if g < 0 {
+			t.Errorf("%s: grupo desconhecido %q", m.ID, m.Grupo)
+			continue
+		}
+		if g < pos {
+			t.Errorf("%s: grupo %q fora de ordem (os módulos de cada grupo precisam ficar juntos)", m.ID, m.Grupo)
+		}
+		pos = g
+	}
+}
+
+func TestDepsAntes(t *testing.T) {
+	pos := map[string]int{}
+	for i, m := range All() {
+		pos[m.ID] = i
+	}
+	for i, m := range All() {
+		for _, d := range m.Deps {
+			p, ok := pos[d]
+			if !ok || p > i {
+				t.Errorf("%s depende de %s, que não existe ou roda depois", m.ID, d)
+			}
+		}
+	}
+}
+
+func TestRenomeados(t *testing.T) {
+	ids := map[string]bool{}
+	for _, m := range All() {
+		ids[m.ID] = true
+	}
+	for id := range Removidos {
+		if ids[id] || Renomeados[id] != nil {
+			t.Errorf("%s está em Removidos, mas ainda existe ou foi renomeado", id)
+		}
+	}
+	for antigo, novos := range Renomeados {
+		if ids[antigo] {
+			t.Errorf("%s ainda é um ID atual, não pode estar em Renomeados", antigo)
+		}
+		for _, n := range novos {
+			if !ids[n] {
+				t.Errorf("Renomeados[%s] aponta para %s, que não existe", antigo, n)
+			}
+		}
+	}
+}
+
 func TestParseWingetExport(t *testing.T) {
 	data := []byte("\ufeff" + `{"$schema":"x","Sources":[
 		{"Packages":[{"PackageIdentifier":"Git.Git"},{"PackageIdentifier":"Google.Chrome"}],"SourceDetails":{"Name":"winget"}},
@@ -145,7 +198,7 @@ func TestDevDriveAntesDosCaches(t *testing.T) {
 	for i, m := range All() {
 		pos[m.ID] = i
 	}
-	for _, id := range []string{"dev_tools", "php_sqlsrv", "ferramentas", "rust_tools", "performance"} {
+	for _, id := range []string{"node", "php_sqlserver", "ferramentas", "rust", "performance"} {
 		if pos["dev_drive"] > pos[id] {
 			t.Errorf("dev_drive precisa rodar antes de %s", id)
 		}
@@ -196,10 +249,12 @@ func TestURLIndexacao(t *testing.T) {
 }
 
 func TestPastasDeCache(t *testing.T) {
-	t.Setenv("USERPROFILE", `C:\Users\vini`)
-	t.Setenv("APPDATA", `C:\Users\vini\AppData\Roaming`)
-	t.Setenv("LOCALAPPDATA", `C:\Users\vini\AppData\Local`)
-	pastas := pastasDeCache()
+	c := ctxTeste(t, &hostFalso{env: map[string]string{
+		"USERPROFILE":  `C:\Users\vini`,
+		"APPDATA":      `C:\Users\vini\AppData\Roaming`,
+		"LOCALAPPDATA": `C:\Users\vini\AppData\Local`,
+	}})
+	pastas := pastasDeCache(c)
 	for _, p := range pastas {
 		if !strings.HasPrefix(p, `C:\Users\vini`) {
 			t.Errorf("pasta fora do perfil: %s", p)

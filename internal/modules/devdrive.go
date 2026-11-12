@@ -2,11 +2,10 @@ package modules
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/vinicgobbi/post-windows/internal/runner"
+	"github.com/vinicgobbi/post-windows/internal/winpath"
 )
 
 // tarefaDevDrive monta o VHDX no boot: um VHDX anexado pelo Mount-DiskImage
@@ -15,6 +14,7 @@ const tarefaDevDrive = "PostWindows-DevDrive"
 
 var devDrive = Module{
 	ID:    "dev_drive",
+	Grupo: GrupoSistema,
 	Title: "Criar Dev Drive",
 	Desc:  "Disco virtual (VHDX dinâmico) em ReFS para Projects e os caches de pacotes (npm, Composer, pip, Cargo/rustup), acessível só para o seu usuário e fora da indexação, com o Defender em modo de desempenho no lugar das exclusões",
 	Run: func(c *Ctx) error {
@@ -25,7 +25,7 @@ var devDrive = Module{
 		}
 		letra := c.DevDriveLetter
 		raiz := letra + `:\`
-		vhd := vhdDevDrive()
+		vhd := vhdDevDrive(c)
 
 		estado, err := c.PSOutput(estadoDevDriveScript(letra, vhd))
 		if err != nil {
@@ -77,14 +77,14 @@ var devDrive = Module{
 		if err := naoIndexar(c, raiz); err != nil {
 			return err
 		}
-		c.projetos = filepath.Join(raiz, "Projects")
-		c.Log.Successf("Dev Drive %s pronto e acessível só para %s: Projects e caches de pacotes ficam nele.", raiz, os.Getenv("USERNAME"))
+		c.projetos = winpath.Join(raiz, "Projects")
+		c.Log.Successf("Dev Drive %s pronto e acessível só para %s: Projects e caches de pacotes ficam nele.", raiz, c.Getenv("USERNAME"))
 		return nil
 	},
 }
 
-func vhdDevDrive() string {
-	return filepath.Join(os.Getenv("SystemDrive")+`\`, "DevDrive", "DevDrive.vhdx")
+func vhdDevDrive(c *Ctx) string {
+	return winpath.Join(c.Getenv("SystemDrive")+`\`, "DevDrive", "DevDrive.vhdx")
 }
 
 // estadoDevDriveScript responde REFS (a letra já é um volume ReFS),
@@ -143,7 +143,7 @@ Register-ScheduledTask -TaskName %s -Action $acao -Trigger $gatilho -Principal $
 // configurarPastasDevDrive cria Projects e os caches no Dev Drive e aponta
 // as ferramentas para eles.
 func configurarPastasDevDrive(c *Ctx, raiz string) error {
-	caches := filepath.Join(raiz, "Caches")
+	caches := winpath.Join(raiz, "Caches")
 	vars := []struct{ nome, pasta string }{
 		{"npm_config_cache", "npm"},
 		{"COMPOSER_CACHE_DIR", "composer"},
@@ -154,23 +154,21 @@ func configurarPastasDevDrive(c *Ctx, raiz string) error {
 	// rustup põe CARGO_HOME\bin no PATH). Só dá para escolher antes de
 	// instalar: com o Rust já em ~\.cargo, mudar a variável quebraria a
 	// instalação existente.
-	home := os.Getenv("USERPROFILE")
-	_, errCargo := os.Stat(filepath.Join(home, ".cargo"))
-	_, errRustup := os.Stat(filepath.Join(home, ".rustup"))
+	home := c.Getenv("USERPROFILE")
 	switch {
-	case os.Getenv("CARGO_HOME") != "":
+	case c.Getenv("CARGO_HOME") != "":
 		// Já configurado (reexecução ou escolha manual): não mexe.
-	case os.IsNotExist(errCargo) && os.IsNotExist(errRustup):
+	case !c.FileExists(winpath.Join(home, ".cargo")) && !c.FileExists(winpath.Join(home, ".rustup")):
 		vars = append(vars, struct{ nome, pasta string }{"CARGO_HOME", "cargo"}, struct{ nome, pasta string }{"RUSTUP_HOME", "rustup"})
 	default:
 		c.Log.Infof("Rust já instalado em %s\\.cargo: mantido lá (mover exigiria reinstalar).", home)
 	}
 
-	if err := c.MkdirAll(filepath.Join(raiz, "Projects")); err != nil {
+	if err := c.MkdirAll(winpath.Join(raiz, "Projects")); err != nil {
 		return err
 	}
 	for _, v := range vars {
-		p := filepath.Join(caches, v.pasta)
+		p := winpath.Join(caches, v.pasta)
 		if err := c.MkdirAll(p); err != nil {
 			return err
 		}
@@ -179,8 +177,8 @@ func configurarPastasDevDrive(c *Ctx, raiz string) error {
 		}
 	}
 
-	antiga := filepath.Join(home, "Projects")
-	if entradas, err := os.ReadDir(antiga); err == nil && len(entradas) > 0 {
+	antiga := winpath.Join(home, "Projects")
+	if entradas, err := c.ReadDir(antiga); err == nil && len(entradas) > 0 {
 		c.Log.Warnf("%s tem conteúdo: mova os projetos para %sProjects quando puder (não movo sozinho).", antiga, raiz)
 	}
 	return nil
@@ -233,12 +231,12 @@ func (c *Ctx) projetosDir() string {
 	}
 	if c.DevDriveLetter != "" {
 		p := c.DevDriveLetter + `:\Projects`
-		if _, err := os.Stat(p); err == nil {
+		if c.FileExists(p) {
 			if fs, err := c.PSOutput(fmt.Sprintf(`(Get-Volume -DriveLetter %s).FileSystem`, c.DevDriveLetter)); err == nil && fs == "ReFS" {
 				c.projetos = p
 				return p
 			}
 		}
 	}
-	return filepath.Join(os.Getenv("USERPROFILE"), "Projects")
+	return winpath.Join(c.Getenv("USERPROFILE"), "Projects")
 }

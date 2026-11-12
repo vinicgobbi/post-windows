@@ -2,15 +2,13 @@ package modules
 
 import (
 	"encoding/binary"
-	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/vinicgobbi/post-windows/internal/runner"
 	"github.com/vinicgobbi/post-windows/internal/winapi"
+	"github.com/vinicgobbi/post-windows/internal/winpath"
 )
 
 const (
@@ -22,6 +20,7 @@ const (
 
 var customizacaoWindows = Module{
 	ID:    "customizacao_windows",
+	Grupo: GrupoWindows,
 	Title: "Customização visual do Windows",
 	Desc:  "Tema escuro, mostrar extensões de arquivo, menu Iniciar centralizado, ocultar a barra de pesquisa, desativar as recomendações do menu Iniciar (Widgets fica) e Explorer abrindo em \"Este Computador\", sem recentes/frequentes no Acesso Rápido",
 	Run: func(c *Ctx) error {
@@ -98,13 +97,14 @@ func reabrirExplorer(c *Ctx) {
 			return
 		}
 	}
-	if _, err := c.Deelevated(filepath.Join(os.Getenv("WINDIR"), "explorer.exe")); err != nil {
+	if _, err := c.Deelevated(winpath.Join(c.Getenv("WINDIR"), "explorer.exe")); err != nil {
 		c.Log.Warnf("Não consegui reabrir o Explorer (%v); faça logoff e logon para voltar a barra de tarefas.", err)
 	}
 }
 
 var performance = Module{
 	ID:    "performance",
+	Grupo: GrupoWindows,
 	Title: "Otimizações de desempenho",
 	Desc:  "Fixa a pasta Projects no Acesso Rápido, Delivery Optimization, Storage Sense, desativa apps na inicialização, limita a CPU da verificação do Defender, Edge/Chrome sem rodar em segundo plano, desliga o dmwappushsvc e os apps em segundo plano do usuário (o Family Safety continua funcionando), pasta de projetos fora da indexação, NTFS sem timestamp de acesso, TRIM do SSD, Defender/indexação para pastas de dev, modo de energia \"Melhor desempenho\" na tomada e hibernação (desktop) — sem mexer em efeitos visuais",
 	Run: func(c *Ctx) error {
@@ -208,7 +208,7 @@ var performance = Module{
 // desempenho do Defender faz esse papel sem desligar a verificação.
 func pastaProjetos(c *Ctx) error {
 	proj := c.projetosDir()
-	emDevDrive := !strings.EqualFold(proj, filepath.Join(os.Getenv("USERPROFILE"), "Projects"))
+	emDevDrive := !winpath.Igual(proj, winpath.Join(c.Getenv("USERPROFILE"), "Projects"))
 	if err := c.MkdirAll(proj); err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func pastaProjetos(c *Ctx) error {
 		}
 		c.Log.Warnf("Não consegui fixar %s no Acesso Rápido.", proj)
 	}
-	if err := naoIndexar(c, append([]string{proj}, pastasDeCache()...)...); err != nil {
+	if err := naoIndexar(c, append([]string{proj}, pastasDeCache(c)...)...); err != nil {
 		return err
 	}
 
@@ -229,10 +229,10 @@ func pastaProjetos(c *Ctx) error {
 		exclusoes = append(exclusoes, runner.PSQuote(proj))
 	}
 	for _, p := range []string{
-		filepath.Join(os.Getenv("USERPROFILE"), ".cargo"),
-		filepath.Join(os.Getenv("USERPROFILE"), ".rustup"),
+		winpath.Join(c.Getenv("USERPROFILE"), ".cargo"),
+		winpath.Join(c.Getenv("USERPROFILE"), ".rustup"),
 	} {
-		if _, err := os.Stat(p); err == nil {
+		if c.FileExists(p) {
 			exclusoes = append(exclusoes, runner.PSQuote(p))
 		}
 	}
@@ -272,13 +272,13 @@ var inicializacaoDesativada = struct{ run, pasta []string }{
 func desativarInicializacao(c *Ctx) error {
 	run := inicializacaoDesativada.run
 	// O Edge cria uma entrada por perfil (MicrosoftEdgeAutoLaunch_<hash>).
-	nomes, _ := winapi.ValueNames(keyRun)
+	nomes, _ := c.ValueNames(keyRun)
 	for _, n := range nomes {
 		if strings.HasPrefix(n, "MicrosoftEdgeAutoLaunch_") {
 			run = append(run, n)
 		}
 	}
-	valor := startupDesativado(time.Now())
+	valor := startupDesativado(c.agora())
 	for _, n := range run {
 		if err := c.SetBinary(keyStartupRun, n, valor); err != nil {
 			return err
@@ -394,29 +394,30 @@ func naoIndexar(c *Ctx, caminhos ...string) error {
 // fixo. Entram também as que ainda não existem (ferramentas que venham a ser
 // instaladas depois, como pnpm, Yarn ou Bun). As que estiverem no Dev Drive
 // já saem junto com a unidade.
-func pastasDeCache() []string {
-	home, roaming, local := os.Getenv("USERPROFILE"), os.Getenv("APPDATA"), os.Getenv("LOCALAPPDATA")
+func pastasDeCache(c *Ctx) []string {
+	home, roaming, local := c.Getenv("USERPROFILE"), c.Getenv("APPDATA"), c.Getenv("LOCALAPPDATA")
 	return []string{
 		// Na pasta do usuário (indexada por padrão).
-		filepath.Join(home, ".cargo"),
-		filepath.Join(home, ".rustup"),
-		filepath.Join(home, ".vscode"), // extensões do VSCode
-		filepath.Join(home, ".bun"),
-		filepath.Join(home, ".cache"),
-		filepath.Join(home, ".nuget"),
+		winpath.Join(home, ".cargo"),
+		winpath.Join(home, ".rustup"),
+		winpath.Join(home, ".vscode"), // extensões do VSCode
+		winpath.Join(home, ".bun"),
+		winpath.Join(home, ".cache"),
+		winpath.Join(home, ".nuget"),
 		// AppData\Roaming.
-		filepath.Join(roaming, "npm"),      // pacotes globais do npm
-		filepath.Join(roaming, "Composer"), // pacotes globais do Composer
-		filepath.Join(roaming, "fnm"),      // versões do Node
-		filepath.Join(roaming, "Code"),     // dados e caches do VSCode
+		winpath.Join(roaming, "npm"),      // pacotes globais do npm
+		winpath.Join(roaming, "Composer"), // pacotes globais do Composer
+		winpath.Join(roaming, "fnm"),      // versões do Node (versões anteriores)
+		winpath.Join(roaming, "Code"),     // dados e caches do VSCode
 		// AppData\Local.
-		filepath.Join(local, "npm-cache"),
-		filepath.Join(local, "pnpm"), // pnpm (inclusive o store)
-		filepath.Join(local, "pnpm-cache"),
-		filepath.Join(local, "Composer"), // cache do Composer
-		filepath.Join(local, "pip"),
-		filepath.Join(local, "Yarn"),
-		filepath.Join(local, "Microsoft", "WinGet", "Packages"), // apps "portable" do winget (PHP...)
+		winpath.Join(local, "mise"), // Node, pnpm e Rust do mise
+		winpath.Join(local, "npm-cache"),
+		winpath.Join(local, "pnpm"), // pnpm (inclusive o store)
+		winpath.Join(local, "pnpm-cache"),
+		winpath.Join(local, "Composer"), // cache do Composer
+		winpath.Join(local, "pip"),
+		winpath.Join(local, "Yarn"),
+		winpath.Join(local, "Microsoft", "WinGet", "Packages"), // apps "portable" do winget (PHP...)
 	}
 }
 
@@ -431,203 +432,4 @@ func urlIndexacao(p string) string {
 func ehNotebook(c *Ctx) bool {
 	out, err := c.PSOutput(`[bool](Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue)`)
 	return err == nil && strings.EqualFold(out, "True")
-}
-
-// bloatware é uma lista conservadora — só o que quase ninguém usa depois de
-// trocar por VLC/Spotify/Telegram/LibreOffice. Ficam de fora de propósito: Teams
-// (Chat), Widgets, Vincular ao Celular (YourPhone) e o Outlook novo
-// (Microsoft.OutlookForWindows).
-var bloatware = []string{
-	"Microsoft.MicrosoftOfficeHub",
-	"Microsoft.MicrosoftSolitaireCollection",
-	"Microsoft.MixedReality.Portal",
-	"Microsoft.GetHelp",
-	"Microsoft.Getstarted",
-	"Microsoft.WindowsFeedbackHub",
-	"Microsoft.Print3D",
-	"Microsoft.3DBuilder",
-	"Microsoft.Microsoft3DViewer",
-	"Microsoft.ZuneMusic",
-	"Microsoft.ZuneVideo",
-	"Microsoft.BingWeather",
-	"Microsoft.BingNews",
-	"Microsoft.BingSearch",
-	"Microsoft.Copilot",
-	"Microsoft.549981C3F5F10", // Cortana (é o ID real do pacote na Store)
-	"Clipchamp.Clipchamp",
-	"Microsoft.SkypeApp",
-	"Microsoft.Todos",
-	"Microsoft.People",
-	"Microsoft.WindowsMaps",
-	"Microsoft.WindowsAlarms",
-	"Microsoft.WindowsSoundRecorder",
-	"Microsoft.Wallet",
-	// Correio e Calendário nativos, substituídos pelo Outlook novo.
-	"microsoft.windowscommunicationsapps",
-	// Família Xbox/Game Bar: sem Game Pass/gravação de clipes; Steam/Heroic
-	// já têm overlay próprio.
-	"Microsoft.GamingApp",
-	"Microsoft.XboxGamingOverlay",
-	"Microsoft.XboxIdentityProvider",
-	"Microsoft.XboxSpeechToTextOverlay",
-	"Microsoft.Xbox.TCUI",
-	"Microsoft.XboxGameCallableUI",
-}
-
-// tarefasTelemetria rodam periodicamente sem efeito visível; variam por
-// versão/edição, então as que não existirem são ignoradas.
-var tarefasTelemetria = []string{
-	`\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser`,
-	`\Microsoft\Windows\Application Experience\ProgramDataUpdater`,
-	`\Microsoft\Windows\Autochk\Proxy`,
-	`\Microsoft\Windows\Customer Experience Improvement Program\Consolidator`,
-	`\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip`,
-	`\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector`,
-	`\Microsoft\Windows\Feedback\Siuf\DmClient`,
-	`\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload`,
-}
-
-var debloat = Module{
-	ID:    "debloat",
-	Title: "Remover bloatware do Windows",
-	Desc:  "Remove apps pré-instalados (incl. família Xbox/Game Bar, Cortana, Copilot, Bing Search), desativa o Game DVR (evita o diálogo do ms-gamingoverlay) e desliga apps/anúncios sugeridos, dicas e boas-vindas, busca web e destaques da pesquisa e tarefas de telemetria",
-	Run: func(c *Ctx) error {
-		c.Log.Infof("Removendo apps pré-instalados não usados...")
-		lista := make([]string, len(bloatware))
-		for i, b := range bloatware {
-			lista[i] = runner.PSQuote(b)
-		}
-		// -AllUsers às vezes falha com 0x80070002 mesmo com o pacote
-		// presente; a remoção só do usuário atual resolve nesse caso. O
-		// pacote provisionado é removido para não voltar em contas novas.
-		script := fmt.Sprintf(`$ErrorActionPreference = 'Continue'
-$provisionados = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-foreach ($nome in @(%s)) {
-    $pacotes = Get-AppxPackage -AllUsers -Name $nome -ErrorAction SilentlyContinue
-    foreach ($p in $pacotes) {
-        $p | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-        $p | Remove-AppxPackage -ErrorAction SilentlyContinue
-        "Removido: $nome"
-    }
-    $provisionados | Where-Object { $_.DisplayName -eq $nome } |
-        Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
-}`, strings.Join(lista, ", "))
-		if err := c.PowerShell(script); err != nil {
-			return err
-		}
-
-		err := step(
-			// Game DVR desligado: com a família Xbox/Game Bar removida, jogos
-			// em tela cheia abririam um diálogo pedindo o "ms-gamingoverlay".
-			func() error {
-				return c.SetDWord(`HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR`, "AppCaptureEnabled", 0)
-			},
-			func() error { return c.SetDWord(`HKCU\System\GameConfigStore`, "GameDVR_Enabled", 0) },
-			// Sem reinstalação automática de "apps sugeridos" nem anúncios no
-			// menu Iniciar. NÃO usar "DisableWindowsConsumerFeatures": essa
-			// política também esconde a página do Vincular ao Celular em
-			// Configurações.
-			//
-			// Os SubscribedContent-* são os toggles de Configurações >
-			// Sistema > Notificações > Configurações adicionais e do menu
-			// Iniciar: 338389 = "Obter dicas e sugestões ao usar o Windows",
-			// 310093 = "Mostrar a experiência de boas-vindas" (após
-			// atualizações), 338388 = sugestões no Iniciar. SoftLanding são as
-			// dicas sobre recursos novos.
-			func() error {
-				return c.SetDWords(`HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager`, map[string]uint32{
-					"SystemPaneSuggestionsEnabled": 0, "SilentInstalledAppsEnabled": 0,
-					"SubscribedContent-338389Enabled": 0, "SubscribedContent-310093Enabled": 0,
-					"SubscribedContent-338388Enabled": 0, "SoftLandingEnabled": 0,
-				})
-			},
-			// "Sugerir maneiras de concluir a configuração do dispositivo".
-			func() error {
-				return c.SetDWord(`HKCU\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement`, "ScoobeSystemSettingEnabled", 0)
-			},
-			// Busca do menu Iniciar só local, sem Bing a cada tecla, e sem os
-			// "destaques da pesquisa" (conteúdo baixado da internet ao abrir
-			// a busca).
-			func() error {
-				return c.SetDWords(`HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search`, map[string]uint32{
-					"DisableWebSearch": 1, "ConnectedSearchUseWeb": 0, "EnableDynamicContentInWSB": 0,
-				})
-			},
-			func() error {
-				return c.SetDWords(keySearch, map[string]uint32{"BingSearchEnabled": 0, "CortanaConsent": 0})
-			},
-		)
-		if err != nil {
-			return err
-		}
-
-		for _, t := range tarefasTelemetria {
-			if c.Probe("schtasks", "/Query", "/TN", t) {
-				c.Try("schtasks", "/Change", "/TN", t, "/Disable")
-			}
-		}
-		c.Log.Successf("Bloatware removido, sugestões/dicas do Windows e busca web desativadas e tarefas de telemetria desligadas.")
-		return nil
-	},
-}
-
-var limpeza = Module{
-	ID:    "limpeza",
-	Title: "Limpeza final",
-	Desc:  "Remove arquivos temporários, versões antigas dos componentes do Windows (DISM), o cache do Delivery Optimization e o do Chocolatey (se instalado)",
-	Run: func(c *Ctx) error {
-		c.Log.Infof("Limpando arquivos temporários...")
-		for _, dir := range []string{os.TempDir(), filepath.Join(os.Getenv("WINDIR"), "Temp")} {
-			limparPasta(c, dir)
-		}
-		if runner.Exists("choco") {
-			c.Try("choco", "cache", "remove", "--all")
-		}
-
-		// Pacotes de atualização já instalados, guardados para compartilhar
-		// com outros PCs.
-		if err := c.PowerShell(`Delete-DeliveryOptimizationCache -Force`); err != nil {
-			if c.Ctx.Err() != nil {
-				return err
-			}
-			c.Log.Warnf("Não consegui limpar o cache do Delivery Optimization: %v", err)
-		}
-
-		// Versões antigas dos componentes que sobram depois do Windows
-		// Update. Sem /ResetBase de propósito: as atualizações continuam
-		// desinstaláveis.
-		c.Log.Infof("Limpando versões antigas dos componentes do Windows (pode levar alguns minutos)...")
-		if err := c.Run("Dism.exe", "/Online", "/Cleanup-Image", "/StartComponentCleanup"); err != nil {
-			if c.Ctx.Err() != nil {
-				return err
-			}
-			c.Log.Warnf("O DISM não concluiu a limpeza dos componentes: %v", err)
-		}
-		c.Log.Successf("Limpeza concluída.")
-		return nil
-	},
-}
-
-// limparPasta apaga o conteúdo de dir, menos o WorkDir desta execução
-// (apagado no final). Arquivos em uso são ignorados.
-func limparPasta(c *Ctx, dir string) {
-	entradas, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	if c.DryRun {
-		c.Log.Infof("[dry-run] apagar o conteúdo de %s (%d itens)", dir, len(entradas))
-		return
-	}
-	apagados := 0
-	for _, e := range entradas {
-		p := filepath.Join(dir, e.Name())
-		if strings.EqualFold(p, c.WorkDir) {
-			continue
-		}
-		if os.RemoveAll(p) == nil {
-			apagados++
-		}
-	}
-	c.Log.Infof("%s: %d de %d itens apagados (os demais estão em uso).", dir, apagados, len(entradas))
 }

@@ -19,44 +19,33 @@ type App struct {
 	Choco string
 }
 
-var NavegadorGit = []App{
-	{ID: "Google.Chrome", Nome: "Google Chrome"},
-	{ID: "Mozilla.Firefox", Nome: "Mozilla Firefox"},
-	{ID: "Git.Git", Nome: "Git"},
-	{ID: "Git.GCM", Nome: "Git Credential Manager"},
-}
-
-var DevTools = []App{
-	// O instalador do VSCode (Inno Setup) só habilita "Adicionar ao PATH" por
-	// padrão no silent install — as opções de menu de contexto do Explorer
-	// ("Abrir com o Code" em arquivos e pastas) ficam desmarcadas a menos que
-	// sejam forçadas via /MERGETASKS.
-	{ID: "Microsoft.VisualStudioCode", Nome: "Visual Studio Code",
-		Args: []string{"--override", "/VERYSILENT /MERGETASKS=addcontextmenufiles,addcontextmenufolders"}},
-	{ID: "DBeaver.DBeaver.Community", Nome: "DBeaver CE"},
+// Apps é a lista padrão de aplicativos (módulo "apps"), o equivalente à
+// lista de Flatpaks do post-install.
+var Apps = []App{
 	{ID: "Postman.Postman", Nome: "Postman"},
+	{ID: "DBeaver.DBeaver.Community", Nome: "DBeaver CE"},
 	// O pacote "DevToys-app.DevToys" do winget é a build preview (2.0-preview.x)
 	// apesar do nome não deixar isso claro — "9PGCV4V3BK4W" é a estável de
-	// verdade (1.0.x), vem da Microsoft Store.
+	// verdade (1.0.x), vem da Microsoft Store. No Linux, o equivalente é o
+	// DevToolbox.
 	{ID: "9PGCV4V3BK4W", Nome: "DevToys", Source: "msstore"},
-	{ID: "Schniz.fnm", Nome: "fnm (Fast Node Manager)"},
-}
-
-var ComunicacaoMidia = []App{
+	{ID: "Obsidian.Obsidian", Nome: "Obsidian"},
+	{ID: "ente-io.auth-desktop", Nome: "Ente Auth"},
+	{ID: "gaphor.gaphor", Nome: "Gaphor"},
+	{ID: "TheDocumentFoundation.LibreOffice", Nome: "LibreOffice"},
+	{ID: "ONLYOFFICE.DesktopEditors", Nome: "OnlyOffice Desktop Editors"},
 	{ID: "Telegram.TelegramDesktop", Nome: "Telegram"},
 	{ID: "Vencord.Vesktop", Nome: "Vesktop (Discord + Vencord já embutido)"},
 	// Spotify e WhatsApp falham ao instalar via winget elevado: precisam
-	// rodar como o usuário padrão.
+	// rodar como o usuário padrão. O WhatsApp é o equivalente do ZapZap.
 	{ID: "Spotify.Spotify", Nome: "Spotify", UserScope: true},
 	{ID: "WhatsApp.WhatsApp", Nome: "WhatsApp", UserScope: true},
 	{ID: "VideoLAN.VLC", Nome: "VLC"},
 	{ID: "OBSProject.OBSStudio", Nome: "OBS Studio"},
-}
-
-var Produtividade = []App{
-	{ID: "Obsidian.Obsidian", Nome: "Obsidian"},
-	{ID: "ente-io.auth-desktop", Nome: "Ente Auth"},
-	{ID: "gaphor.gaphor", Nome: "Gaphor"},
+	{ID: "qBittorrent.qBittorrent", Nome: "qBittorrent"},
+	// Sem pacote no winget: vai direto pelo Chocolatey.
+	{Nome: "FileZilla Client", Choco: "filezilla"},
+	{ID: "Mikrotik.Winbox", Nome: "WinBox"},
 }
 
 var Jogos = []App{
@@ -65,13 +54,6 @@ var Jogos = []App{
 	// faz sentido instalar os launchers oficiais dessas lojas em paralelo.
 	{ID: "HeroicGamesLauncher.HeroicGamesLauncher", Nome: "Heroic Games Launcher"},
 	{ID: "PrismLauncher.PrismLauncher", Nome: "Prism Launcher"},
-}
-
-var UtilitariosRede = []App{
-	{ID: "Mikrotik.Winbox", Nome: "WinBox"},
-	{ID: "qBittorrent.qBittorrent", Nome: "qBittorrent"},
-	// Sem pacote no winget: vai direto pelo Chocolatey.
-	{Nome: "FileZilla Client", Choco: "filezilla"},
 }
 
 var Ferramentas = []App{
@@ -85,30 +67,28 @@ var Ferramentas = []App{
 	{Nome: "Nmap", Choco: "nmap"},
 }
 
+// RustTools são as ferramentas do módulo "rust" além do próprio Rust (que
+// vem do mise). Diferente do Linux, eza e topgrade já têm binário nativo
+// pré-compilado no winget: não precisa de toolchain C nem compilar via cargo.
 var RustTools = []App{
-	// Diferente do Linux, eza e topgrade já têm binário nativo pré-compilado
-	// no winget — não precisa de toolchain C nem compilar via cargo.
-	{ID: "Rustlang.Rustup", Nome: "rustup"},
 	{ID: "eza-community.eza", Nome: "eza"},
 	{ID: "topgrade-rs.topgrade", Nome: "topgrade"},
 }
 
-var Office = []App{
-	{ID: "TheDocumentFoundation.LibreOffice", Nome: "LibreOffice"},
-	{ID: "ONLYOFFICE.DesktopEditors", Nome: "OnlyOffice Desktop Editors"},
-}
-
-// DotfilesRepoURL é o repositório de onde vem a config do Oh My Posh (pasta
-// oh-my-posh/: tema, aliases, editor).
-const DotfilesRepoURL = "https://github.com/vinicgobbi/Dotfiles.git"
-
-// Apps do inventário Linux sem equivalente/necessidade no Windows:
-//   - Flatseal, Extension Manager, Ignition, Warehouse: gerenciam Flatpak,
-//     que não existe no Windows.
+// Apps do post-install (Linux) sem equivalente/necessidade no Windows:
+//   - Flatseal, Extension Manager, Ignition, Warehouse: gerenciam Flatpak e
+//     o GNOME, que não existem no Windows.
 //   - Mission Center: substituído pelo Gerenciador de Tarefas.
 //   - Remmina: RDP já é nativo (mstsc).
+//   - GNOME Boxes: substituído pelo VirtualBox (módulo "virtualbox").
+//   - Gradia, Snapshot e Weather: a Ferramenta de Captura, a Câmera e o
+//     Clima já vêm com o Windows.
+//   - Trayscale: o cliente do Tailscale no Windows já tem ícone na bandeja.
 //   - ProtonPlus: gerencia o Proton, sem sentido no Windows.
-//   - Thunderbird: substituído pelo Outlook novo, que já vem com o Windows
-//     (o debloat o mantém).
-//   - Docker: não usado no Windows (exigiria o WSL2).
+//   - Blip: sem pacote no winget nem no Chocolatey.
+//   - Thunderbird: substituído pelo Outlook novo, que já vem com o Windows.
+//   - Podman/Docker: não usados no Windows (exigiriam o WSL2).
+//   - cargo-update: no Linux o topgrade o usa para atualizar o que veio do
+//     "cargo install"; aqui nada é instalado pelo cargo (eza e topgrade vêm
+//     do winget, que o topgrade atualiza).
 //   - jq e sqlcmd (mssql-tools): não usados; do SQL Server basta o driver ODBC.

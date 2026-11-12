@@ -1,10 +1,12 @@
-// Package tui é a interface interativa (Bubble Tea): escolha dos módulos →
-// confirmação → execução com progresso ao vivo → resumo.
+// Package tui é a interface interativa (Bubble Tea): atualização (se houver
+// versão nova) → papel de parede → escolha dos módulos → confirmação →
+// execução com progresso ao vivo → resumo.
 package tui
 
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,16 +32,33 @@ type Config struct {
 	// User é a conta que recebe a configuração (no Windows o UAC não troca
 	// de usuário: é sempre quem executou o programa).
 	User string
+	// Wallpapers são as imagens disponíveis; Wallpaper é a escolhida (vazio
+	// = não alterar). Com WallChosen (veio de --wallpaper), não pergunta.
+	Wallpapers []string
+	Wallpaper  string
+	WallChosen bool
 	// Start roda a execução dos módulos escolhidos, enviando eventos do
 	// engine (e entradas de log) para emit. Bloqueia até terminar.
-	Start    func(ctx context.Context, mods []modules.Module, emit func(any))
+	Start    func(ctx context.Context, esc modules.Escolhas, mods []modules.Module, emit func(any))
 	LogPaths []string
+	// UpdateVersion é a release mais nova disponível (vazio = nenhuma).
+	// Fora do dry-run, a primeira tela oferece rodar ApplyUpdate; depois de
+	// atualizar, mostra RerunCommand e sai. No dry-run, só avisa no topo.
+	UpdateVersion string
+	ApplyUpdate   func() error
+	RerunCommand  string
+	// VersaoAceita (--allow-untested-version) pula a confirmação para seguir
+	// numa versão do Windows não testada (Sys.NaoTestada).
+	VersaoAceita bool
 }
 
 type state int
 
 const (
-	stateSelect state = iota
+	stateAtualizacao state = iota
+	stateVersao
+	stateWallpaper
+	stateSelect
 	stateConfirm
 	stateRunning
 	stateDone
@@ -55,6 +74,17 @@ type Model struct {
 	cursor int
 	sel    []bool
 	status string
+
+	wallCursor int
+
+	updChoice         int // 0 = atualizar, 1 = ignorar
+	atualizando       bool
+	atualizado        bool
+	updErr            string
+	depoisAtualizacao state
+
+	versaoChoice int // 0 = sair, 1 = continuar
+	depoisVersao state
 
 	// Execução.
 	runMods   []modules.Module
@@ -77,6 +107,10 @@ type Model struct {
 // Result devolve o resultado final (nil se o usuário saiu antes de executar).
 func (m Model) Result() *engine.FinishedEvent { return m.finished }
 
+// Updated diz se o post-windows foi atualizado nesta sessão (é preciso
+// executar de novo).
+func (m Model) Updated() bool { return m.atualizado }
+
 func New(cfg Config) Model {
 	sel := make([]bool, len(cfg.Modules))
 	copy(sel, cfg.Selected)
@@ -87,7 +121,7 @@ func New(cfg Config) Model {
 
 	bar := progress.New(progress.WithGradient("#7C3AED", "#22C55E"), progress.WithoutPercentage())
 
-	return Model{
+	m := Model{
 		cfg:    cfg,
 		sel:    sel,
 		spin:   sp,
@@ -95,6 +129,35 @@ func New(cfg Config) Model {
 		follow: true,
 		vp:     viewport.New(80, 10),
 	}
+	m.state = m.proxima(stateVersao)
+	// A confirmação da versão vem antes da tela que seria a primeira; a
+	// oferta de atualização, antes de tudo.
+	if cfg.Sys.NaoTestada && !cfg.DryRun && !cfg.VersaoAceita {
+		m.depoisVersao, m.state = m.state, stateVersao
+	}
+	if cfg.UpdateVersion != "" && !cfg.DryRun && cfg.ApplyUpdate != nil {
+		m.depoisAtualizacao, m.state = m.state, stateAtualizacao
+	}
+	return m
+}
+
+// proxima devolve a próxima pergunta depois de atual, pulando as que não se
+// aplicam, até chegar ao checklist: o papel de parede só é perguntado se há
+// imagens, o módulo está marcado e não veio --wallpaper.
+func (m *Model) proxima(atual state) state {
+	if atual < stateWallpaper && !m.cfg.WallChosen && len(m.cfg.Wallpapers) > 0 && m.marcado("papel_parede") {
+		return stateWallpaper
+	}
+	return stateSelect
+}
+
+func (m *Model) marcado(id string) bool {
+	for i, mod := range m.cfg.Modules {
+		if mod.ID == id {
+			return m.sel[i]
+		}
+	}
+	return false
 }
 
 func (m Model) Init() tea.Cmd {
@@ -160,8 +223,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventsMsg:
 		return m.handleEvents(msg)
 
+	case atualizadoMsg:
+		m.atualizando = false
+		if msg.err != nil {
+			m.updErr = msg.err.Error()
+		} else {
+			m.atualizado = true
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.state {
+		case stateAtualizacao:
+			return m.updateAtualizacao(msg)
+		case stateVersao:
+			return m.updateVersao(msg)
+		case stateWallpaper:
+			return m.updateWallpaper(msg)
 		case stateSelect:
 			return m.updateSelect(msg)
 		case stateConfirm:
@@ -240,9 +318,21 @@ func (m Model) viewSelect() string {
 	detail := m.moduleDetail(mods[m.cursor])
 	fixed := lipgloss.Height(m.header()) + 3 + lipgloss.Height(detail) + 3
 	rows := max(3, m.h-fixed)
-	start, end := window(m.cursor, len(mods), rows)
+	linhas := linhasSelecao(mods)
+	cur := 0
+	for j, l := range linhas {
+		if l.mod == m.cursor {
+			cur = j
+		}
+	}
+	start, end := window(cur, len(linhas), rows)
 
-	for i := start; i < end; i++ {
+	for _, l := range linhas[start:end] {
+		if l.mod < 0 {
+			b.WriteString(accentStyle.Render(l.grupo) + "\n")
+			continue
+		}
+		i := l.mod
 		check := subtleStyle.Render("[ ]")
 		if m.sel[i] {
 			check = okStyle.Render("[✓]")
@@ -255,8 +345,14 @@ func (m Model) viewSelect() string {
 		}
 		b.WriteString(pointer + check + " " + title + "\n")
 	}
-	if end < len(mods) {
-		b.WriteString(subtleStyle.Render(fmt.Sprintf("   ↓ mais %d", len(mods)-end)) + "\n")
+	restantes := 0
+	for _, l := range linhas[end:] {
+		if l.mod >= 0 {
+			restantes++
+		}
+	}
+	if restantes > 0 {
+		b.WriteString(subtleStyle.Render(fmt.Sprintf("   ↓ mais %d", restantes)) + "\n")
 	} else {
 		b.WriteString("\n")
 	}
@@ -265,6 +361,25 @@ func (m Model) viewSelect() string {
 	b.WriteString(lipgloss.NewStyle().Width(max(20, m.w)).Render(m.status) + "\n")
 	b.WriteString(help("↑/↓", "mover", "espaço", "marcar", "a", "todos", "enter", "continuar", "q", "sair"))
 	return b.String()
+}
+
+// linhaSelecao é uma linha do checklist: um módulo (índice em mod) ou o
+// cabeçalho de um grupo (mod < 0).
+type linhaSelecao struct {
+	mod   int
+	grupo string
+}
+
+// linhasSelecao intercala os módulos com um cabeçalho antes de cada grupo.
+func linhasSelecao(mods []modules.Module) []linhaSelecao {
+	var out []linhaSelecao
+	for i, mod := range mods {
+		if i == 0 || mod.Grupo != mods[i-1].Grupo {
+			out = append(out, linhaSelecao{mod: -1, grupo: mod.Grupo})
+		}
+		out = append(out, linhaSelecao{mod: i})
+	}
+	return out
 }
 
 func (m Model) moduleDetail(mod modules.Module) string {
@@ -350,6 +465,13 @@ func (m Model) viewConfirm() string {
 		b.WriteString(strings.Join(items, "\n"))
 	}
 	b.WriteString("\n\n")
+	if m.marcado("papel_parede") {
+		nome := "não alterar"
+		if m.cfg.Wallpaper != "" {
+			nome = filepath.Base(m.cfg.Wallpaper)
+		}
+		b.WriteString(subtleStyle.Render("Papel de parede: ") + accentStyle.Render(nome) + "\n\n")
+	}
 	if m.cfg.DryRun {
 		b.WriteString(warnStyle.Render("Modo dry-run: nada será alterado no sistema, os comandos só serão listados.") + "\n\n")
 	}
@@ -378,8 +500,9 @@ func (m Model) startRun() (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	ch, mods := m.events, m.runMods
+	esc := modules.Escolhas{Wallpaper: m.cfg.Wallpaper}
 	go func() {
-		m.cfg.Start(ctx, mods, func(ev any) { ch <- ev })
+		m.cfg.Start(ctx, esc, mods, func(ev any) { ch <- ev })
 		close(ch)
 	}()
 	m.resize()
@@ -672,7 +795,14 @@ func (m Model) header() string {
 	if m.cfg.User != "" {
 		info += subtleStyle.Render(" · usuário ") + accentStyle.Render(m.cfg.User)
 	}
-	return title + "\n" + info + "\n"
+	out := title + "\n" + info
+	if m.cfg.UpdateVersion != "" && m.cfg.DryRun {
+		out += "\n" + infoStyle.Render("↑ Nova versão disponível: "+m.cfg.UpdateVersion+" — execute sem --dry-run para atualizar.")
+	}
+	for _, w := range m.cfg.Sys.Warnings {
+		out += "\n" + warnStyle.Width(max(20, m.w)).Render("! "+w)
+	}
+	return out + "\n"
 }
 
 func (m Model) View() string {
@@ -681,6 +811,12 @@ func (m Model) View() string {
 	}
 	var v string
 	switch m.state {
+	case stateAtualizacao:
+		v = m.viewAtualizacao()
+	case stateVersao:
+		v = m.viewVersao()
+	case stateWallpaper:
+		v = m.viewWallpaper()
 	case stateSelect:
 		v = m.viewSelect()
 	case stateConfirm:
