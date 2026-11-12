@@ -1,3 +1,23 @@
+## v2.0.0 (2026-11-12)
+
+### BREAKING CHANGE
+
+- os IDs de módulo mudaram e o debloat não existe mais. --modules e --skip ainda aceitam os IDs antigos (Renomeados) e ignoram o debloat (Removidos), com um aviso.
+
+### Feat
+
+- **setup**: aponta Wallpapers e desliga a verificação de atualização
+- **modules**: segue os IDs e os grupos do post-install
+- **update**: atualiza o post-windows pela release do GitHub
+- **sysinfo**: confere a versão do Windows contra as suportadas
+- **runner**: consulta a máquina por um Host e confere downloads
+- **winpath**: trata caminhos do Windows igual em qualquer sistema
+- **winapi**: adiciona PATH do usuário e papel de parede
+
+### Fix
+
+- atualiza o Go para 1.27.4 (GO-2026-6859, GO-2026-6809)
+
 ## v1.2.0 (2026-10-23)
 
 ### Feat
